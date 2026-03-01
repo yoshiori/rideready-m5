@@ -29,13 +29,27 @@
 - M5Unit-ENV: use `"SHT3X.h"` / `"QMP6988.h"` individually (no `M5_ENV.h`)
 - QMP6988 address is 0x70 on this unit, not default 0x56
 
+## Maintenance Tracker
+- **B button**: Reset Tire Pressure timer
+- **C button**: Reset Chain Lube
+- Cumulative uptime tracked via `millis()` and persisted to NVS every 60s
+- Distance (`--- km`) is placeholder until Step 4 (Strava/GPS)
+
+## NVS Keys (namespace: "rideready")
+| Key | Type | Description |
+|-----|------|-------------|
+| `cum_uptime` | ULong64 | Cumulative uptime (ms) |
+| `tire_reset` | ULong64 | Tire pressure reset cumulative uptime (ms) |
+| `chain_reset` | ULong64 | Chain lube reset cumulative uptime (ms) |
+
 ## Screen Layout (320x240)
 ```
 +------------------+------------------+
 | (0,0)-(159,119)  | (160,0)-(319,119)|
-|  ENV Panel       |  (future)        |
+|  ENV Panel       |  (future:Strava) |
 +------------------+------------------+
 | (0,120)-(319,239)                   |
-|  (future)                           |
+|  Maintenance Panel                  |
+|  Tire Pressure / Chain Lube         |
 +-------------------------------------+
 ```
