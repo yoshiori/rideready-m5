@@ -1,6 +1,6 @@
 #include "maintenance_tracker.h"
 
-static const uint64_t MS_PER_HOUR = 3600ULL * 1000ULL;
+static constexpr uint64_t MS_PER_HOUR = 3600ULL * 1000ULL;
 
 MaintenanceTracker::MaintenanceTracker() : resetUptimeMs_(0) {}
 

@@ -135,7 +135,7 @@ void drawMaintenancePanel() {
 
   M5.Lcd.setTextSize(2);
   M5.Lcd.setCursor(192, 162);
-  M5.Lcd.print("--- km");
+  M5.Lcd.printf("%u h", chainLube.elapsedHours(now));
 
   M5.Lcd.setTextSize(1);
   M5.Lcd.setCursor(184, 192);
@@ -144,10 +144,10 @@ void drawMaintenancePanel() {
 }
 
 void saveToNvs() {
-  uint64_t now = currentCumulativeMs();
+  unsigned long now_ms = millis();
   // Update cumulative uptime base
-  cumulativeUptimeMs = now;
-  lastUptimeUpdateMs = millis();
+  cumulativeUptimeMs += (now_ms - lastUptimeUpdateMs);
+  lastUptimeUpdateMs = now_ms;
 
   preferences.putULong64("cum_uptime", cumulativeUptimeMs);
   preferences.putULong64("tire_reset", tirePressure.resetUptimeMs());
