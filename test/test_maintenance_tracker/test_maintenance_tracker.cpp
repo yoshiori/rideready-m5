@@ -1,4 +1,5 @@
 #include <unity.h>
+#include <ctime>
 
 #include "maintenance_tracker.h"
 
@@ -68,6 +69,43 @@ void test_restore_from_saved_value(void) {
   TEST_ASSERT_EQUAL_UINT32(5, tracker.elapsedHours(currentUptime));
 }
 
+// --- Epoch tests ---
+
+void test_initial_has_no_epoch(void) {
+  MaintenanceTracker tracker;
+  TEST_ASSERT_FALSE(tracker.hasEpoch());
+  TEST_ASSERT_EQUAL(0, tracker.resetEpoch());
+}
+
+void test_set_reset_epoch(void) {
+  MaintenanceTracker tracker;
+  time_t epoch = 1709280000;  // 2024-03-01 12:00:00 UTC
+  tracker.setResetEpoch(epoch);
+  TEST_ASSERT_TRUE(tracker.hasEpoch());
+  TEST_ASSERT_EQUAL(epoch, tracker.resetEpoch());
+}
+
+void test_reset_clears_epoch(void) {
+  MaintenanceTracker tracker;
+  tracker.setResetEpoch(1709280000);
+  TEST_ASSERT_TRUE(tracker.hasEpoch());
+
+  // reset() should clear the epoch
+  tracker.reset(5 * MS_PER_HOUR);
+  TEST_ASSERT_FALSE(tracker.hasEpoch());
+  TEST_ASSERT_EQUAL(0, tracker.resetEpoch());
+}
+
+void test_epoch_survives_set_after_reset(void) {
+  MaintenanceTracker tracker;
+  // Simulate: reset() then setResetEpoch()
+  tracker.reset(5 * MS_PER_HOUR);
+  time_t epoch = 1709280000;
+  tracker.setResetEpoch(epoch);
+  TEST_ASSERT_TRUE(tracker.hasEpoch());
+  TEST_ASSERT_EQUAL(epoch, tracker.resetEpoch());
+}
+
 void test_multiple_resets(void) {
   MaintenanceTracker tracker;
   uint64_t t1 = 2 * MS_PER_HOUR;
@@ -92,6 +130,10 @@ int main(int argc, char **argv) {
   RUN_TEST(test_reset_uptime_after_reset);
   RUN_TEST(test_restore_from_saved_value);
   RUN_TEST(test_multiple_resets);
+  RUN_TEST(test_initial_has_no_epoch);
+  RUN_TEST(test_set_reset_epoch);
+  RUN_TEST(test_reset_clears_epoch);
+  RUN_TEST(test_epoch_survives_set_after_reset);
   UNITY_END();
   return 0;
 }

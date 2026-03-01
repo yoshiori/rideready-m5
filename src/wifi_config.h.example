@@ -1,0 +1,9 @@
+// Copy this file to wifi_config.h and fill in your credentials
+// wifi_config.h is excluded from git
+#ifndef WIFI_CONFIG_H
+#define WIFI_CONFIG_H
+
+#define WIFI_SSID "your-ssid"
+#define WIFI_PASS "your-password"
+
+#endif
