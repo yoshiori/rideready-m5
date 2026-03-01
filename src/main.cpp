@@ -30,6 +30,22 @@ static const char* trendSymbol(TrendDirection dir) {
   }
 }
 
+void readSensors() {
+  if (sht3x.update()) {
+    temperature = sht3x.cTemp;
+    humidity = sht3x.humidity;
+  } else {
+    Serial.println("Error: Failed to read SHT3X");
+  }
+
+  if (qmp6988.update()) {
+    pressure_hpa = qmp6988.pressure / 100.0f;
+    pressureTrend.addSample(pressure_hpa);
+  } else {
+    Serial.println("Error: Failed to read QMP6988");
+  }
+}
+
 void drawEnvPanel() {
   // Top-left quadrant: (0,0)-(159,119)
   M5.Lcd.fillRect(0, 0, 160, 120, BLACK);
@@ -90,14 +106,7 @@ void setup() {
 
   // Read sensors immediately on boot
   if (sensorOk) {
-    if (sht3x.update()) {
-      temperature = sht3x.cTemp;
-      humidity = sht3x.humidity;
-    }
-    if (qmp6988.update()) {
-      pressure_hpa = qmp6988.pressure / 100.0f;
-      pressureTrend.addSample(pressure_hpa);
-    }
+    readSensors();
   }
 
   drawEnvPanel();
@@ -111,14 +120,7 @@ void loop() {
     lastReadMs = now;
 
     if (sensorOk) {
-      if (sht3x.update()) {
-        temperature = sht3x.cTemp;
-        humidity = sht3x.humidity;
-      }
-      if (qmp6988.update()) {
-        pressure_hpa = qmp6988.pressure / 100.0f;
-        pressureTrend.addSample(pressure_hpa);
-      }
+      readSensors();
       Serial.printf("Temp: %.1f C  Humidity: %.1f %%  Pressure: %.1f hPa  Trend: %s\n",
                     temperature, humidity, pressure_hpa,
                     trendSymbol(pressureTrend.direction()));
