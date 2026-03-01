@@ -23,8 +23,9 @@ static const unsigned long WIFI_RECONNECT_INTERVAL_MS = 30000;
 static const unsigned long NTP_RESYNC_INTERVAL_MS = 3600000;  // 1 hour
 static const unsigned long NTP_CHECK_INTERVAL_MS = 5000;
 static const unsigned long WIFI_CONNECT_TIMEOUT_MS = 10000;
-static const unsigned long STRAVA_SYNC_INTERVAL_MS = 600000;  // 10 min
-static const long GMT_OFFSET_SEC = 9 * 3600;                  // JST
+static const unsigned long STRAVA_SYNC_INTERVAL_MS = 600000;    // 10 min
+static const unsigned long STRAVA_TOKEN_EXPIRY_BUFFER_SEC = 300;  // 5 min
+static const long GMT_OFFSET_SEC = 9 * 3600;                   // JST
 
 SHT3X sht3x;
 QMP6988 qmp6988;
@@ -135,12 +136,15 @@ void loadStravaTokens() {
       preferences.getULong64("strava_exp", 0));
 
   strncpy(stravaAccessToken, at.c_str(), sizeof(stravaAccessToken) - 1);
+  stravaAccessToken[sizeof(stravaAccessToken) - 1] = '\0';
   strncpy(stravaRefreshToken, rt.c_str(), sizeof(stravaRefreshToken) - 1);
+  stravaRefreshToken[sizeof(stravaRefreshToken) - 1] = '\0';
 
   // If no stored refresh token, use the one from config
   if (strlen(stravaRefreshToken) == 0) {
     strncpy(stravaRefreshToken, STRAVA_REFRESH_TOKEN,
             sizeof(stravaRefreshToken) - 1);
+    stravaRefreshToken[sizeof(stravaRefreshToken) - 1] = '\0';
   }
 
   Serial.printf("Strava tokens loaded: AT=%s RT=%s\n",
@@ -160,10 +164,10 @@ bool refreshStravaToken() {
 
   http.addHeader("Content-Type", "application/x-www-form-urlencoded");
 
-  String payload = "client_id=" + String(STRAVA_CLIENT_ID) +
-                   "&client_secret=" + String(STRAVA_CLIENT_SECRET) +
-                   "&grant_type=refresh_token" +
-                   "&refresh_token=" + String(stravaRefreshToken);
+  char payload[512];
+  snprintf(payload, sizeof(payload),
+           "client_id=%s&client_secret=%s&grant_type=refresh_token&refresh_token=%s",
+           STRAVA_CLIENT_ID, STRAVA_CLIENT_SECRET, stravaRefreshToken);
 
   int httpCode = http.POST(payload);
   Serial.printf("Strava token refresh: HTTP %d\n", httpCode);
@@ -201,7 +205,7 @@ bool ensureStravaToken() {
   if (ntpSynced) {
     time_t now;
     time(&now);
-    if (static_cast<unsigned long>(now) >= stravaExpiresAt - 300) {
+    if (static_cast<unsigned long>(now) >= stravaExpiresAt - STRAVA_TOKEN_EXPIRY_BUFFER_SEC) {
       return refreshStravaToken();
     }
   } else {
@@ -216,7 +220,7 @@ bool ensureStravaToken() {
 
 // --- Strava API calls ---
 
-bool fetchStravaStats() {
+bool fetchStravaStats(bool isRetry = false) {
   WiFiClientSecure client;
   client.setInsecure();
 
@@ -244,11 +248,11 @@ bool fetchStravaStats() {
     return ok;
   }
 
-  if (httpCode == 401) {
+  if (httpCode == 401 && !isRetry) {
     Serial.println("Strava: Unauthorized, will refresh token");
     http.end();
     if (refreshStravaToken()) {
-      return fetchStravaStats();  // Retry once after refresh
+      return fetchStravaStats(true);  // Retry once after refresh
     }
   }
 
@@ -604,6 +608,7 @@ void loop() {
   if (WiFi.status() != WL_CONNECTED &&
       (now - lastWifiCheckMs) >= WIFI_RECONNECT_INTERVAL_MS) {
     lastWifiCheckMs = now;
+    stravaSyncNeeded = true;  // Re-sync Strava after reconnect
     Serial.println("WiFi disconnected, attempting reconnect...");
     WiFi.reconnect();
   }

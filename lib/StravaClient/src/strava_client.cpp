@@ -3,6 +3,8 @@
 #include <ArduinoJson.h>
 #include <cstring>
 
+static constexpr float METERS_PER_KM = 1000.0f;
+
 bool StravaClient::parseTokenResponse(const char* json, char* accessToken,
                                        size_t atLen, char* refreshToken,
                                        size_t rtLen,
@@ -32,12 +34,12 @@ bool StravaClient::parseStats(const char* json, StravaStats& out) {
   JsonObject allRide = doc["all_ride_totals"];
   if (allRide.isNull()) return false;
 
-  out.all_ride_totals_km = allRide["distance"].as<float>() / 1000.0f;
+  out.all_ride_totals_km = allRide["distance"].as<float>() / METERS_PER_KM;
   out.all_ride_count = allRide["count"].as<int>();
 
   JsonObject ytdRide = doc["ytd_ride_totals"];
   if (!ytdRide.isNull()) {
-    out.ytd_ride_totals_km = ytdRide["distance"].as<float>() / 1000.0f;
+    out.ytd_ride_totals_km = ytdRide["distance"].as<float>() / METERS_PER_KM;
   } else {
     out.ytd_ride_totals_km = 0.0f;
   }
@@ -62,7 +64,7 @@ bool StravaClient::parseActivity(const char* json, StravaActivity& out) {
     out.name[0] = '\0';
   }
 
-  out.distance_km = activity["distance"].as<float>() / 1000.0f;
+  out.distance_km = activity["distance"].as<float>() / METERS_PER_KM;
   out.moving_time_sec = activity["moving_time"].as<uint32_t>();
 
   return true;
