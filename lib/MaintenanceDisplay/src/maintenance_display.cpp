@@ -24,7 +24,7 @@ MaintenanceDisplayResult MaintenanceDisplay::format(time_t resetEpoch,
       snprintf(result.text, sizeof(result.text), "%02d/%02d",
                t->tm_mon + 1, t->tm_mday);
     } else {
-      snprintf(result.text, sizeof(result.text), "%d days", days);
+      snprintf(result.text, sizeof(result.text), "%d %s", days, days == 1 ? "day" : "days");
     }
   }
 

@@ -17,6 +17,7 @@ static const unsigned long READ_INTERVAL_MS = 10000;
 static const unsigned long NVS_SAVE_INTERVAL_MS = 60000;
 static const unsigned long WIFI_RECONNECT_INTERVAL_MS = 30000;
 static const unsigned long NTP_RESYNC_INTERVAL_MS = 3600000;  // 1 hour
+static const unsigned long NTP_CHECK_INTERVAL_MS = 5000;
 static const unsigned long WIFI_CONNECT_TIMEOUT_MS = 10000;
 static const long GMT_OFFSET_SEC = 9 * 3600;  // JST
 
@@ -33,6 +34,7 @@ unsigned long lastReadMs = 0;
 unsigned long lastNvsSaveMs = 0;
 unsigned long lastWifiCheckMs = 0;
 unsigned long lastNtpSyncMs = 0;
+unsigned long lastNtpCheckMs = 0;
 float temperature = 0.0f;
 float humidity = 0.0f;
 float pressure_hpa = 0.0f;
@@ -91,6 +93,14 @@ bool checkNtpSync() {
     }
   }
   return false;
+}
+
+void updateResetEpoch(MaintenanceTracker& tracker) {
+  if (ntpSynced) {
+    time_t epochNow;
+    time(&epochNow);
+    tracker.setResetEpoch(epochNow);
+  }
 }
 
 void readSensors() {
@@ -346,11 +356,7 @@ void loop() {
   if (M5.BtnB.wasPressed()) {
     uint64_t cumNow = currentCumulativeMs();
     tirePressure.reset(cumNow);
-    if (ntpSynced) {
-      time_t epochNow;
-      time(&epochNow);
-      tirePressure.setResetEpoch(epochNow);
-    }
+    updateResetEpoch(tirePressure);
     saveToNvs();
     drawMaintenancePanel();
     Serial.println("Tire Pressure timer reset");
@@ -360,11 +366,7 @@ void loop() {
   if (M5.BtnC.wasPressed()) {
     uint64_t cumNow = currentCumulativeMs();
     chainLube.reset(cumNow);
-    if (ntpSynced) {
-      time_t epochNow;
-      time(&epochNow);
-      chainLube.setResetEpoch(epochNow);
-    }
+    updateResetEpoch(chainLube);
     saveToNvs();
     drawMaintenancePanel();
     Serial.println("Chain Lube reset");
@@ -389,8 +391,10 @@ void loop() {
     }
   }
 
-  // Check for first NTP sync after WiFi connects
-  if (!ntpSynced && WiFi.status() == WL_CONNECTED) {
+  // Check for first NTP sync after WiFi connects (throttled to every 5s)
+  if (!ntpSynced && WiFi.status() == WL_CONNECTED &&
+      (now - lastNtpCheckMs) >= NTP_CHECK_INTERVAL_MS) {
+    lastNtpCheckMs = now;
     ntpSynced = checkNtpSync();
     if (ntpSynced) {
       Serial.println("NTP synced");

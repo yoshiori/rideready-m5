@@ -78,7 +78,7 @@ void test_epoch_one_day(void) {
   time_t currentEpoch = makeEpoch(2026, 3, 2);
   MaintenanceDisplayResult result =
       MaintenanceDisplay::format(resetEpoch, currentEpoch, 24 * MS_PER_HOUR);
-  TEST_ASSERT_EQUAL_STRING("1 days", result.text);
+  TEST_ASSERT_EQUAL_STRING("1 day", result.text);
 }
 
 int main(int argc, char **argv) {
