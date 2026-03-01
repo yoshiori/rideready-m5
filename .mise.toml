@@ -9,8 +9,8 @@ description = "Install PlatformIO CLI"
 run = "pip install platformio"
 
 [tasks.build]
-description = "Build the project"
-run = "pio run"
+description = "Build the project and update compile_commands.json"
+run = ["pio run", "pio run --target compiledb"]
 
 [tasks.upload]
 description = "Upload firmware to M5Stack"
