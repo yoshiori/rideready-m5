@@ -1,0 +1,28 @@
+#ifndef STRAVA_CLIENT_H
+#define STRAVA_CLIENT_H
+
+#include <stdint.h>
+#include <ctime>
+
+struct StravaActivity {
+  char name[48];
+  float distance_km;
+  uint32_t moving_time_sec;
+};
+
+struct StravaStats {
+  float all_ride_totals_km;
+  int all_ride_count;
+  float ytd_ride_totals_km;
+};
+
+class StravaClient {
+public:
+  static bool parseActivity(const char* json, StravaActivity& out);
+  static bool parseStats(const char* json, StravaStats& out);
+  static bool parseTokenResponse(const char* json, char* accessToken,
+                                  size_t atLen, char* refreshToken,
+                                  size_t rtLen, unsigned long& expiresAt);
+};
+
+#endif

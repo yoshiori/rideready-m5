@@ -43,7 +43,16 @@
 - Cumulative uptime tracked via `millis()` and persisted to NVS every 60s
 - When NTP is synced, resets also store Unix epoch for date-based display
 - Display: NTP synced → "N days" (≤7) or "MM/DD" (>7); NTP not synced → "N h"
-- Distance (`--- km`) is placeholder until Step 4 (Strava/GPS)
+## Strava API
+- `src/strava_config.h` contains Client ID/Secret/Refresh Token/Athlete ID
+- `src/strava_config.h.example` is the template; `src/strava_config.h` is gitignored
+- OAuth2 refresh token flow: initial token obtained manually via browser
+- Token auto-refresh before expiry (6h lifetime, 5min buffer)
+- Tokens persisted in NVS (`strava_at`, `strava_rt`, `strava_exp`)
+- Endpoints: `/athletes/{id}/stats` (total distance), `/athlete/activities?per_page=1` (latest ride)
+- Sync interval: 10 minutes
+- `WiFiClientSecure` + `HTTPClient` with `setInsecure()` (no cert pinning)
+- `ArduinoJson` v7 for JSON parsing (`JsonDocument`, not deprecated `StaticJsonDocument`)
 
 ## NVS Keys (namespace: "rideready")
 | Key | Type | Description |
@@ -53,6 +62,9 @@
 | `chain_reset` | ULong64 | Chain lube reset cumulative uptime (ms) |
 | `tire_epoch` | ULong64 | Tire pressure reset Unix timestamp |
 | `chain_epoch` | ULong64 | Chain lube reset Unix timestamp |
+| `strava_at` | String | Strava access token |
+| `strava_rt` | String | Strava refresh token |
+| `strava_exp` | ULong64 | Strava token expires_at (Unix epoch) |
 
 ## Screen Layout (320x240)
 ```
@@ -62,7 +74,7 @@
 |  25.3 C          |  14:32           |
 |  48.2 %          |  2026/03/02      |
 |  1014 -          |  WiFi: MySSID    |
-|  hPa             |  IP: 192.168.x.x|
+|  hPa             |  1234 km         |
 +------------------+------------------+
 | (0,120)-(319,239)                   |
 |  Maintenance Panel                  |
