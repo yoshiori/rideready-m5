@@ -1,23 +1,39 @@
 #include <M5Stack.h>
+#include <Preferences.h>
 #include <Wire.h>
 
 #include "QMP6988.h"
 #include "SHT3X.h"
+#include "maintenance_tracker.h"
 #include "pressure_trend.h"
 
 static const uint8_t ENV_SDA = 21;
 static const uint8_t ENV_SCL = 22;
 static const unsigned long READ_INTERVAL_MS = 10000;
+static const unsigned long NVS_SAVE_INTERVAL_MS = 60000;
 
 SHT3X sht3x;
 QMP6988 qmp6988;
 PressureTrend pressureTrend;
+Preferences preferences;
+
+MaintenanceTracker tirePressure;
+MaintenanceTracker chainLube;
 
 bool sensorOk = false;
 unsigned long lastReadMs = 0;
+unsigned long lastNvsSaveMs = 0;
 float temperature = 0.0f;
 float humidity = 0.0f;
 float pressure_hpa = 0.0f;
+
+// Cumulative uptime persisted across reboots
+uint64_t cumulativeUptimeMs = 0;
+unsigned long lastUptimeUpdateMs = 0;
+
+static uint64_t currentCumulativeMs() {
+  return cumulativeUptimeMs + (millis() - lastUptimeUpdateMs);
+}
 
 static const char* trendSymbol(TrendDirection dir) {
   switch (dir) {
@@ -83,6 +99,61 @@ void drawEnvPanel() {
   M5.Lcd.print("hPa");
 }
 
+void drawMaintenancePanel() {
+  // Bottom half: (0,120)-(319,239)
+  M5.Lcd.fillRect(0, 120, 320, 120, BLACK);
+  M5.Lcd.drawRect(0, 120, 320, 120, WHITE);
+
+  uint64_t now = currentCumulativeMs();
+
+  M5.Lcd.setTextColor(CYAN, BLACK);
+  M5.Lcd.setTextSize(1);
+  M5.Lcd.setCursor(4, 124);
+  M5.Lcd.print("MAINTENANCE");
+
+  // Tire Pressure - left side
+  M5.Lcd.setTextColor(WHITE, BLACK);
+  M5.Lcd.setTextSize(1);
+  M5.Lcd.setCursor(16, 144);
+  M5.Lcd.print("Tire Pressure");
+
+  M5.Lcd.setTextSize(2);
+  M5.Lcd.setCursor(24, 162);
+  uint32_t tireHours = tirePressure.elapsedHours(now);
+  M5.Lcd.printf("%u h", tireHours);
+
+  M5.Lcd.setTextSize(1);
+  M5.Lcd.setCursor(16, 192);
+  M5.Lcd.setTextColor(GREEN, BLACK);
+  M5.Lcd.print("[B] Reset");
+
+  // Chain Lube - right side
+  M5.Lcd.setTextColor(WHITE, BLACK);
+  M5.Lcd.setTextSize(1);
+  M5.Lcd.setCursor(184, 144);
+  M5.Lcd.print("Chain Lube");
+
+  M5.Lcd.setTextSize(2);
+  M5.Lcd.setCursor(192, 162);
+  M5.Lcd.printf("%u h", chainLube.elapsedHours(now));
+
+  M5.Lcd.setTextSize(1);
+  M5.Lcd.setCursor(184, 192);
+  M5.Lcd.setTextColor(GREEN, BLACK);
+  M5.Lcd.print("[C] Reset");
+}
+
+void saveToNvs() {
+  unsigned long now_ms = millis();
+  // Update cumulative uptime base
+  cumulativeUptimeMs += (now_ms - lastUptimeUpdateMs);
+  lastUptimeUpdateMs = now_ms;
+
+  preferences.putULong64("cum_uptime", cumulativeUptimeMs);
+  preferences.putULong64("tire_reset", tirePressure.resetUptimeMs());
+  preferences.putULong64("chain_reset", chainLube.resetUptimeMs());
+}
+
 void setup() {
   M5.begin(true, true, true, false);
   M5.Power.begin();
@@ -92,6 +163,19 @@ void setup() {
   M5.Lcd.setTextSize(2);
   M5.Lcd.setCursor(30, 100);
   M5.Lcd.println("RideReady!");
+
+  // NVS: restore cumulative uptime and maintenance reset times
+  preferences.begin("rideready", false);
+  cumulativeUptimeMs = preferences.getULong64("cum_uptime", 0);
+  lastUptimeUpdateMs = millis();
+
+  uint64_t tireResetMs = preferences.getULong64("tire_reset", 0);
+  uint64_t chainResetMs = preferences.getULong64("chain_reset", 0);
+  tirePressure.reset(tireResetMs);
+  chainLube.reset(chainResetMs);
+
+  Serial.printf("NVS restored: cum_uptime=%llu tire_reset=%llu chain_reset=%llu\n",
+                cumulativeUptimeMs, tireResetMs, chainResetMs);
 
   bool sht_ok = sht3x.begin(&Wire, 0x44, ENV_SDA, ENV_SCL, 400000U);
   bool qmp_ok = qmp6988.begin(&Wire, 0x70, ENV_SDA, ENV_SCL, 400000U);
@@ -110,12 +194,33 @@ void setup() {
   }
 
   drawEnvPanel();
+  drawMaintenancePanel();
 }
 
 void loop() {
   M5.update();
 
   unsigned long now = millis();
+
+  // B button: reset Tire Pressure timer
+  if (M5.BtnB.wasPressed()) {
+    uint64_t cumNow = currentCumulativeMs();
+    tirePressure.reset(cumNow);
+    saveToNvs();
+    drawMaintenancePanel();
+    Serial.println("Tire Pressure timer reset");
+  }
+
+  // C button: reset Chain Lube
+  if (M5.BtnC.wasPressed()) {
+    uint64_t cumNow = currentCumulativeMs();
+    chainLube.reset(cumNow);
+    saveToNvs();
+    drawMaintenancePanel();
+    Serial.println("Chain Lube reset");
+  }
+
+  // Periodic sensor read
   if (now - lastReadMs >= READ_INTERVAL_MS) {
     lastReadMs = now;
 
@@ -126,5 +231,13 @@ void loop() {
                     trendSymbol(pressureTrend.direction()));
       drawEnvPanel();
     }
+
+    drawMaintenancePanel();
+  }
+
+  // Periodic NVS save (every 60s)
+  if (now - lastNvsSaveMs >= NVS_SAVE_INTERVAL_MS) {
+    lastNvsSaveMs = now;
+    saveToNvs();
   }
 }
