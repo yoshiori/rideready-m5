@@ -1,0 +1,21 @@
+[tools]
+python = "3.12"
+
+[env]
+PLATFORMIO_CORE_DIR = "{{config_root}}/.pio"
+
+[tasks.setup]
+description = "Install PlatformIO CLI"
+run = "pip install platformio"
+
+[tasks.build]
+description = "Build the project"
+run = "pio run"
+
+[tasks.upload]
+description = "Upload firmware to M5Stack"
+run = "pio run --target upload"
+
+[tasks.monitor]
+description = "Open serial monitor"
+run = "pio device monitor"
