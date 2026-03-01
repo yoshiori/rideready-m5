@@ -10,11 +10,11 @@ run = "pip install platformio"
 
 [tasks.build]
 description = "Build the project and update compile_commands.json"
-run = ["pio run", "pio run --target compiledb"]
+run = ["pio run -e m5stack-core-esp32", "pio run -e m5stack-core-esp32 --target compiledb"]
 
 [tasks.upload]
 description = "Upload firmware to M5Stack"
-run = "pio run --target upload"
+run = "pio run -e m5stack-core-esp32 --target upload"
 
 [tasks.monitor]
 description = "Open serial monitor"
