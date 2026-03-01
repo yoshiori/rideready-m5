@@ -1,0 +1,22 @@
+// Copy this file to strava_config.h and fill in your credentials
+// strava_config.h is excluded from git
+//
+// Setup:
+// 1. Register app at https://www.strava.com/settings/api
+// 2. Authorize via browser:
+//    https://www.strava.com/oauth/authorize?client_id=YOUR_ID&response_type=code&redirect_uri=http://localhost&scope=activity:read_all,read_all&approval_prompt=force
+// 3. Exchange code for tokens:
+//    curl -X POST https://www.strava.com/oauth/token \
+//      -d client_id=YOUR_ID -d client_secret=YOUR_SECRET \
+//      -d code=CODE -d grant_type=authorization_code
+// 4. Copy refresh_token and athlete.id from the response
+
+#ifndef STRAVA_CONFIG_H
+#define STRAVA_CONFIG_H
+
+#define STRAVA_CLIENT_ID "your-client-id"
+#define STRAVA_CLIENT_SECRET "your-client-secret"
+#define STRAVA_REFRESH_TOKEN "your-refresh-token"
+#define STRAVA_ATHLETE_ID "your-athlete-id"
+
+#endif

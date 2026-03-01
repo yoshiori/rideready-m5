@@ -1,6 +1,8 @@
 #include <M5Stack.h>
+#include <HTTPClient.h>
 #include <Preferences.h>
 #include <WiFi.h>
+#include <WiFiClientSecure.h>
 #include <Wire.h>
 #include <time.h>
 
@@ -9,6 +11,8 @@
 #include "maintenance_display.h"
 #include "maintenance_tracker.h"
 #include "pressure_trend.h"
+#include "strava_client.h"
+#include "strava_config.h"
 #include "wifi_config.h"
 
 static const uint8_t ENV_SDA = 21;
@@ -19,7 +23,9 @@ static const unsigned long WIFI_RECONNECT_INTERVAL_MS = 30000;
 static const unsigned long NTP_RESYNC_INTERVAL_MS = 3600000;  // 1 hour
 static const unsigned long NTP_CHECK_INTERVAL_MS = 5000;
 static const unsigned long WIFI_CONNECT_TIMEOUT_MS = 10000;
-static const long GMT_OFFSET_SEC = 9 * 3600;  // JST
+static const unsigned long STRAVA_SYNC_INTERVAL_MS = 600000;    // 10 min
+static const unsigned long STRAVA_TOKEN_EXPIRY_BUFFER_SEC = 300;  // 5 min
+static const long GMT_OFFSET_SEC = 9 * 3600;                   // JST
 
 SHT3X sht3x;
 QMP6988 qmp6988;
@@ -35,6 +41,7 @@ unsigned long lastNvsSaveMs = 0;
 unsigned long lastWifiCheckMs = 0;
 unsigned long lastNtpSyncMs = 0;
 unsigned long lastNtpCheckMs = 0;
+unsigned long lastStravaSyncMs = 0;
 float temperature = 0.0f;
 float humidity = 0.0f;
 float pressure_hpa = 0.0f;
@@ -44,6 +51,15 @@ uint64_t cumulativeUptimeMs = 0;
 unsigned long lastUptimeUpdateMs = 0;
 
 bool ntpSynced = false;
+
+// Strava state
+char stravaAccessToken[256] = "";
+char stravaRefreshToken[256] = "";
+unsigned long stravaExpiresAt = 0;
+StravaStats stravaStats = {};
+StravaActivity stravaLatestActivity = {};
+bool stravaDataValid = false;
+bool stravaSyncNeeded = true;
 
 static uint64_t currentCumulativeMs() {
   return cumulativeUptimeMs + (millis() - lastUptimeUpdateMs);
@@ -74,7 +90,8 @@ void initWifi() {
   }
 
   if (WiFi.status() == WL_CONNECTED) {
-    Serial.printf("\nWiFi connected: %s\n", WiFi.localIP().toString().c_str());
+    Serial.printf("\nWiFi connected: %s\n",
+                  WiFi.localIP().toString().c_str());
   } else {
     Serial.println("\nWiFi connection failed (will retry in loop)");
   }
@@ -103,6 +120,201 @@ void updateResetEpoch(MaintenanceTracker& tracker) {
   }
 }
 
+// --- Strava token management ---
+
+void saveStravaTokens() {
+  preferences.putString("strava_at", stravaAccessToken);
+  preferences.putString("strava_rt", stravaRefreshToken);
+  preferences.putULong64("strava_exp", static_cast<uint64_t>(stravaExpiresAt));
+  Serial.println("Strava tokens saved to NVS");
+}
+
+void loadStravaTokens() {
+  String at = preferences.getString("strava_at", "");
+  String rt = preferences.getString("strava_rt", "");
+  stravaExpiresAt = static_cast<unsigned long>(
+      preferences.getULong64("strava_exp", 0));
+
+  strncpy(stravaAccessToken, at.c_str(), sizeof(stravaAccessToken) - 1);
+  stravaAccessToken[sizeof(stravaAccessToken) - 1] = '\0';
+  strncpy(stravaRefreshToken, rt.c_str(), sizeof(stravaRefreshToken) - 1);
+  stravaRefreshToken[sizeof(stravaRefreshToken) - 1] = '\0';
+
+  // If no stored refresh token, use the one from config
+  if (strlen(stravaRefreshToken) == 0) {
+    strncpy(stravaRefreshToken, STRAVA_REFRESH_TOKEN,
+            sizeof(stravaRefreshToken) - 1);
+    stravaRefreshToken[sizeof(stravaRefreshToken) - 1] = '\0';
+  }
+
+  Serial.printf("Strava tokens loaded: AT=%s RT=%s\n",
+                strlen(stravaAccessToken) > 0 ? "(set)" : "(empty)",
+                strlen(stravaRefreshToken) > 0 ? "(set)" : "(empty)");
+}
+
+bool refreshStravaToken() {
+  WiFiClientSecure client;
+  client.setInsecure();
+
+  HTTPClient http;
+  if (!http.begin(client, "https://www.strava.com/oauth/token")) {
+    Serial.println("Strava: Failed to begin HTTP");
+    return false;
+  }
+
+  http.addHeader("Content-Type", "application/x-www-form-urlencoded");
+
+  char payload[512];
+  snprintf(payload, sizeof(payload),
+           "client_id=%s&client_secret=%s&grant_type=refresh_token&refresh_token=%s",
+           STRAVA_CLIENT_ID, STRAVA_CLIENT_SECRET, stravaRefreshToken);
+
+  int httpCode = http.POST(payload);
+  Serial.printf("Strava token refresh: HTTP %d\n", httpCode);
+
+  if (httpCode == 200) {
+    String response = http.getString();
+    char newAt[256];
+    char newRt[256];
+    unsigned long newExp;
+
+    if (StravaClient::parseTokenResponse(response.c_str(), newAt, sizeof(newAt),
+                                          newRt, sizeof(newRt), newExp)) {
+      strncpy(stravaAccessToken, newAt, sizeof(stravaAccessToken) - 1);
+      strncpy(stravaRefreshToken, newRt, sizeof(stravaRefreshToken) - 1);
+      stravaExpiresAt = newExp;
+      saveStravaTokens();
+      Serial.println("Strava token refreshed successfully");
+      http.end();
+      return true;
+    }
+  }
+
+  http.end();
+  Serial.println("Strava token refresh failed");
+  return false;
+}
+
+bool ensureStravaToken() {
+  if (strlen(stravaAccessToken) == 0 || strlen(stravaRefreshToken) == 0) {
+    // No tokens at all, try refresh with config token
+    return refreshStravaToken();
+  }
+
+  // Check if token is expired (with 5 min buffer)
+  if (ntpSynced) {
+    time_t now;
+    time(&now);
+    if (static_cast<unsigned long>(now) >= stravaExpiresAt - STRAVA_TOKEN_EXPIRY_BUFFER_SEC) {
+      return refreshStravaToken();
+    }
+  } else {
+    // Without NTP, refresh if access token seems stale
+    if (stravaExpiresAt == 0) {
+      return refreshStravaToken();
+    }
+  }
+
+  return true;
+}
+
+// --- Strava API calls ---
+
+bool fetchStravaStats(bool isRetry = false) {
+  WiFiClientSecure client;
+  client.setInsecure();
+
+  HTTPClient http;
+  String url = "https://www.strava.com/api/v3/athletes/" +
+               String(STRAVA_ATHLETE_ID) + "/stats";
+
+  if (!http.begin(client, url)) {
+    return false;
+  }
+
+  http.addHeader("Authorization", "Bearer " + String(stravaAccessToken));
+
+  int httpCode = http.GET();
+  Serial.printf("Strava stats: HTTP %d\n", httpCode);
+
+  if (httpCode == 200) {
+    String response = http.getString();
+    bool ok = StravaClient::parseStats(response.c_str(), stravaStats);
+    http.end();
+    if (ok) {
+      Serial.printf("Strava stats: %.1f km total, %d rides\n",
+                    stravaStats.all_ride_totals_km, stravaStats.all_ride_count);
+    }
+    return ok;
+  }
+
+  if (httpCode == 401 && !isRetry) {
+    Serial.println("Strava: Unauthorized, will refresh token");
+    http.end();
+    if (refreshStravaToken()) {
+      return fetchStravaStats(true);  // Retry once after refresh
+    }
+  }
+
+  http.end();
+  return false;
+}
+
+bool fetchStravaLatestActivity() {
+  WiFiClientSecure client;
+  client.setInsecure();
+
+  HTTPClient http;
+  if (!http.begin(client,
+                  "https://www.strava.com/api/v3/athlete/activities?per_page=1")) {
+    return false;
+  }
+
+  http.addHeader("Authorization", "Bearer " + String(stravaAccessToken));
+
+  int httpCode = http.GET();
+  Serial.printf("Strava activities: HTTP %d\n", httpCode);
+
+  if (httpCode == 200) {
+    String response = http.getString();
+    bool ok =
+        StravaClient::parseActivity(response.c_str(), stravaLatestActivity);
+    http.end();
+    if (ok) {
+      Serial.printf("Strava latest: %s (%.1f km)\n",
+                    stravaLatestActivity.name,
+                    stravaLatestActivity.distance_km);
+    }
+    return ok;
+  }
+
+  http.end();
+  return false;
+}
+
+void syncStrava() {
+  if (WiFi.status() != WL_CONNECTED) return;
+
+  Serial.println("Strava sync starting...");
+
+  if (!ensureStravaToken()) {
+    Serial.println("Strava: No valid token, skipping sync");
+    return;
+  }
+
+  bool statsOk = fetchStravaStats();
+  bool activityOk = fetchStravaLatestActivity();
+
+  if (statsOk || activityOk) {
+    stravaDataValid = true;
+  }
+
+  Serial.printf("Strava sync done: stats=%s activity=%s\n",
+                statsOk ? "OK" : "FAIL", activityOk ? "OK" : "FAIL");
+}
+
+// --- Sensors ---
+
 void readSensors() {
   if (sht3x.update()) {
     temperature = sht3x.cTemp;
@@ -118,6 +330,8 @@ void readSensors() {
     Serial.println("Error: Failed to read QMP6988");
   }
 }
+
+// --- Display ---
 
 void drawEnvPanel() {
   // Top-left quadrant: (0,0)-(159,119)
@@ -149,7 +363,8 @@ void drawEnvPanel() {
   M5.Lcd.printf("%.1f %%", humidity);
 
   M5.Lcd.setCursor(4, 72);
-  M5.Lcd.printf("%.0f %s", pressure_hpa, trendSymbol(pressureTrend.direction()));
+  M5.Lcd.printf("%.0f %s", pressure_hpa,
+                trendSymbol(pressureTrend.direction()));
 
   M5.Lcd.setTextSize(1);
   M5.Lcd.setCursor(4, 92);
@@ -190,11 +405,21 @@ void drawInfoPanel() {
   if (WiFi.status() == WL_CONNECTED) {
     M5.Lcd.setTextColor(GREEN, BLACK);
     M5.Lcd.printf("WiFi: %s", WIFI_SSID);
-    M5.Lcd.setCursor(164, 86);
-    M5.Lcd.printf("IP: %s", WiFi.localIP().toString().c_str());
   } else {
     M5.Lcd.setTextColor(RED, BLACK);
     M5.Lcd.print("WiFi: Disconnected");
+  }
+
+  // Strava total distance
+  M5.Lcd.setCursor(164, 86);
+  if (stravaDataValid) {
+    M5.Lcd.setTextColor(YELLOW, BLACK);
+    M5.Lcd.setTextSize(2);
+    M5.Lcd.setCursor(164, 92);
+    M5.Lcd.printf("%.0f km", stravaStats.all_ride_totals_km);
+  } else {
+    M5.Lcd.setTextColor(DARKGREY, BLACK);
+    M5.Lcd.print("--- km");
   }
 }
 
@@ -306,6 +531,9 @@ void setup() {
     chainLube.setResetEpoch(static_cast<time_t>(chainEpoch));
   }
 
+  // Restore Strava tokens
+  loadStravaTokens();
+
   Serial.printf(
       "NVS restored: cum_uptime=%llu tire_reset=%llu chain_reset=%llu "
       "tire_epoch=%llu chain_epoch=%llu\n",
@@ -340,6 +568,10 @@ void setup() {
       Serial.println("NTP synced");
     }
     lastNtpSyncMs = millis();
+
+    // Initial Strava sync
+    syncStrava();
+    lastStravaSyncMs = millis();
   }
 
   drawEnvPanel();
@@ -376,6 +608,7 @@ void loop() {
   if (WiFi.status() != WL_CONNECTED &&
       (now - lastWifiCheckMs) >= WIFI_RECONNECT_INTERVAL_MS) {
     lastWifiCheckMs = now;
+    stravaSyncNeeded = true;  // Re-sync Strava after reconnect
     Serial.println("WiFi disconnected, attempting reconnect...");
     WiFi.reconnect();
   }
@@ -401,6 +634,22 @@ void loop() {
       lastNtpSyncMs = now;
       drawInfoPanel();
     }
+  }
+
+  // Strava periodic sync (every 10 min)
+  if (WiFi.status() == WL_CONNECTED &&
+      (now - lastStravaSyncMs) >= STRAVA_SYNC_INTERVAL_MS) {
+    lastStravaSyncMs = now;
+    syncStrava();
+    drawInfoPanel();
+  }
+
+  // Strava initial sync after WiFi reconnects
+  if (stravaSyncNeeded && WiFi.status() == WL_CONNECTED && ntpSynced) {
+    stravaSyncNeeded = false;
+    syncStrava();
+    lastStravaSyncMs = now;
+    drawInfoPanel();
   }
 
   // Periodic sensor read
