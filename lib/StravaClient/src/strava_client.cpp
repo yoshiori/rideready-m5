@@ -47,6 +47,21 @@ bool StravaClient::parseStats(const char* json, StravaStats& out) {
   return true;
 }
 
+bool StravaClient::parseActivitiesDistance(const char* json,
+                                            float& totalDistanceKm) {
+  JsonDocument doc;
+  DeserializationError err = deserializeJson(doc, json);
+  if (err) return false;
+
+  JsonArray arr = doc.as<JsonArray>();
+  float totalMeters = 0.0f;
+  for (JsonObject activity : arr) {
+    totalMeters += activity["distance"].as<float>();
+  }
+  totalDistanceKm = totalMeters / METERS_PER_KM;
+  return true;
+}
+
 bool StravaClient::parseActivity(const char* json, StravaActivity& out) {
   JsonDocument doc;
   DeserializationError err = deserializeJson(doc, json);

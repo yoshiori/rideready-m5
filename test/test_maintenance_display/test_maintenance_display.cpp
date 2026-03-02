@@ -81,6 +81,33 @@ void test_epoch_one_day(void) {
   TEST_ASSERT_EQUAL_STRING("1 day", result.text);
 }
 
+// --- formatDistance tests ---
+
+void test_format_distance_normal(void) {
+  MaintenanceDisplayResult result = MaintenanceDisplay::formatDistance(123.4f);
+  TEST_ASSERT_EQUAL_STRING("123 km", result.text);
+}
+
+void test_format_distance_zero(void) {
+  MaintenanceDisplayResult result = MaintenanceDisplay::formatDistance(0.0f);
+  TEST_ASSERT_EQUAL_STRING("0 km", result.text);
+}
+
+void test_format_distance_negative(void) {
+  MaintenanceDisplayResult result = MaintenanceDisplay::formatDistance(-5.0f);
+  TEST_ASSERT_EQUAL_STRING("0 km", result.text);
+}
+
+void test_format_distance_large(void) {
+  MaintenanceDisplayResult result = MaintenanceDisplay::formatDistance(1234.5f);
+  TEST_ASSERT_EQUAL_STRING("1234 km", result.text);
+}
+
+void test_format_distance_rounds_down(void) {
+  MaintenanceDisplayResult result = MaintenanceDisplay::formatDistance(99.9f);
+  TEST_ASSERT_EQUAL_STRING("99 km", result.text);
+}
+
 int main(int argc, char **argv) {
   UNITY_BEGIN();
   RUN_TEST(test_no_epoch_shows_hours);
@@ -91,6 +118,11 @@ int main(int argc, char **argv) {
   RUN_TEST(test_epoch_over_seven_days_shows_date);
   RUN_TEST(test_epoch_date_format_december);
   RUN_TEST(test_epoch_one_day);
+  RUN_TEST(test_format_distance_normal);
+  RUN_TEST(test_format_distance_zero);
+  RUN_TEST(test_format_distance_negative);
+  RUN_TEST(test_format_distance_large);
+  RUN_TEST(test_format_distance_rounds_down);
   UNITY_END();
   return 0;
 }

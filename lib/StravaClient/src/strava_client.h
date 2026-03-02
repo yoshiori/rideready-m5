@@ -19,6 +19,7 @@ struct StravaStats {
 class StravaClient {
 public:
   static bool parseActivity(const char* json, StravaActivity& out);
+  static bool parseActivitiesDistance(const char* json, float& totalDistanceKm);
   static bool parseStats(const char* json, StravaStats& out);
   static bool parseTokenResponse(const char* json, char* accessToken,
                                   size_t atLen, char* refreshToken,
