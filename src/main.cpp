@@ -638,6 +638,8 @@ void setup() {
   M5.begin(true, true, true, false);
   M5.Power.begin();
 
+  Serial.printf("RideReady! [%s]\n", GIT_HASH);
+
   M5.Lcd.fillScreen(BLACK);
   M5.Lcd.setTextColor(WHITE, BLACK);
   M5.Lcd.setTextSize(2);
@@ -730,7 +732,10 @@ void loop() {
   unsigned long now = millis();
 
   // A button: manual fetch (weather + Strava)
-  if (M5.BtnA.wasReleased()) {
+  // GPIO39 is prone to WiFi-induced ghost triggers (ESP32 errata).
+  // wasReleasefor(50) requires held >= 50ms to filter noise spikes.
+  if (M5.BtnA.wasReleasefor(50)) {
+    Serial.println("Manual sync triggered (A button)");
     fetchWeather();
     syncStrava();
     lastWeatherSyncMs = now;
@@ -741,7 +746,6 @@ void loop() {
     drawInfoPanel();
     drawMaintenancePanel();
     M5.update();  // Flush stale button state after long network ops
-    Serial.println("Manual sync triggered (A button)");
   }
 
   // B button: reset Tire Pressure timer
