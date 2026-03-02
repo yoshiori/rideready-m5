@@ -81,6 +81,75 @@ void test_epoch_one_day(void) {
   TEST_ASSERT_EQUAL_STRING("1 day", result.text);
 }
 
+// --- Tire pressure severity (epoch-based) ---
+
+void test_tire_severity_0_days_normal(void) {
+  time_t resetEpoch = makeEpoch(2026, 3, 1);
+  time_t currentEpoch = makeEpoch(2026, 3, 1);
+  MaintenanceDisplayResult result =
+      MaintenanceDisplay::format(resetEpoch, currentEpoch, 0);
+  TEST_ASSERT_EQUAL(Severity::NORMAL, result.severity);
+}
+
+void test_tire_severity_6_days_normal(void) {
+  time_t resetEpoch = makeEpoch(2026, 3, 1);
+  time_t currentEpoch = makeEpoch(2026, 3, 7);
+  MaintenanceDisplayResult result =
+      MaintenanceDisplay::format(resetEpoch, currentEpoch, 6 * 24 * MS_PER_HOUR);
+  TEST_ASSERT_EQUAL(Severity::NORMAL, result.severity);
+}
+
+void test_tire_severity_7_days_warning(void) {
+  time_t resetEpoch = makeEpoch(2026, 3, 1);
+  time_t currentEpoch = makeEpoch(2026, 3, 8);
+  MaintenanceDisplayResult result =
+      MaintenanceDisplay::format(resetEpoch, currentEpoch, 7 * 24 * MS_PER_HOUR);
+  TEST_ASSERT_EQUAL(Severity::WARNING, result.severity);
+}
+
+void test_tire_severity_13_days_warning(void) {
+  time_t resetEpoch = makeEpoch(2026, 3, 1);
+  time_t currentEpoch = makeEpoch(2026, 3, 14);
+  MaintenanceDisplayResult result =
+      MaintenanceDisplay::format(resetEpoch, currentEpoch, 13 * 24 * MS_PER_HOUR);
+  TEST_ASSERT_EQUAL(Severity::WARNING, result.severity);
+}
+
+void test_tire_severity_14_days_critical(void) {
+  time_t resetEpoch = makeEpoch(2026, 3, 1);
+  time_t currentEpoch = makeEpoch(2026, 3, 15);
+  MaintenanceDisplayResult result =
+      MaintenanceDisplay::format(resetEpoch, currentEpoch, 14 * 24 * MS_PER_HOUR);
+  TEST_ASSERT_EQUAL(Severity::CRITICAL, result.severity);
+}
+
+// --- Chain lube severity ---
+
+void test_chain_severity_0km_normal(void) {
+  MaintenanceDisplayResult result = MaintenanceDisplay::formatDistance(0.0f);
+  TEST_ASSERT_EQUAL(Severity::NORMAL, result.severity);
+}
+
+void test_chain_severity_299km_normal(void) {
+  MaintenanceDisplayResult result = MaintenanceDisplay::formatDistance(299.9f);
+  TEST_ASSERT_EQUAL(Severity::NORMAL, result.severity);
+}
+
+void test_chain_severity_300km_warning(void) {
+  MaintenanceDisplayResult result = MaintenanceDisplay::formatDistance(300.0f);
+  TEST_ASSERT_EQUAL(Severity::WARNING, result.severity);
+}
+
+void test_chain_severity_399km_warning(void) {
+  MaintenanceDisplayResult result = MaintenanceDisplay::formatDistance(399.9f);
+  TEST_ASSERT_EQUAL(Severity::WARNING, result.severity);
+}
+
+void test_chain_severity_400km_critical(void) {
+  MaintenanceDisplayResult result = MaintenanceDisplay::formatDistance(400.0f);
+  TEST_ASSERT_EQUAL(Severity::CRITICAL, result.severity);
+}
+
 // --- formatDistance tests ---
 
 void test_format_distance_normal(void) {
@@ -118,6 +187,16 @@ int main(int argc, char **argv) {
   RUN_TEST(test_epoch_over_seven_days_shows_date);
   RUN_TEST(test_epoch_date_format_december);
   RUN_TEST(test_epoch_one_day);
+  RUN_TEST(test_tire_severity_0_days_normal);
+  RUN_TEST(test_tire_severity_6_days_normal);
+  RUN_TEST(test_tire_severity_7_days_warning);
+  RUN_TEST(test_tire_severity_13_days_warning);
+  RUN_TEST(test_tire_severity_14_days_critical);
+  RUN_TEST(test_chain_severity_0km_normal);
+  RUN_TEST(test_chain_severity_299km_normal);
+  RUN_TEST(test_chain_severity_300km_warning);
+  RUN_TEST(test_chain_severity_399km_warning);
+  RUN_TEST(test_chain_severity_400km_critical);
   RUN_TEST(test_format_distance_normal);
   RUN_TEST(test_format_distance_zero);
   RUN_TEST(test_format_distance_negative);

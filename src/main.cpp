@@ -67,7 +67,6 @@ bool stravaSyncNeeded = true;
 // Chain lube distance tracking
 float chainLubeDistanceKm = 0.0f;
 bool chainLubeDistanceValid = false;
-static const float CHAIN_LUBE_DISTANCE_WARN_KM = 500.0f;
 
 // Weather state
 WeatherData weatherData = {};
@@ -551,6 +550,15 @@ void drawInfoPanel() {
   }
 }
 
+static uint16_t severityColor(Severity s) {
+  switch (s) {
+    case Severity::NORMAL:   return WHITE;
+    case Severity::WARNING:  return YELLOW;
+    case Severity::CRITICAL: return RED;
+    default:                 return WHITE;
+  }
+}
+
 void drawMaintenancePanel() {
   // Bottom half: (0,120)-(319,239)
   M5.Lcd.fillRect(0, 120, 320, 120, BLACK);
@@ -581,6 +589,7 @@ void drawMaintenancePanel() {
   M5.Lcd.setCursor(16, 144);
   M5.Lcd.print("Tire Pressure");
 
+  M5.Lcd.setTextColor(severityColor(tireResult.severity), BLACK);
   M5.Lcd.setTextSize(2);
   M5.Lcd.setCursor(24, 162);
   M5.Lcd.print(tireResult.text);
@@ -596,13 +605,11 @@ void drawMaintenancePanel() {
   M5.Lcd.setCursor(184, 144);
   M5.Lcd.print("Chain Lube");
 
-  M5.Lcd.setTextSize(2);
-  M5.Lcd.setCursor(192, 162);
   MaintenanceDisplayResult chainResult =
       MaintenanceDisplay::formatDistance(chainLubeDistanceKm);
-  if (chainLubeDistanceKm >= CHAIN_LUBE_DISTANCE_WARN_KM) {
-    M5.Lcd.setTextColor(RED, BLACK);
-  }
+  M5.Lcd.setTextColor(severityColor(chainResult.severity), BLACK);
+  M5.Lcd.setTextSize(2);
+  M5.Lcd.setCursor(192, 162);
   M5.Lcd.print(chainResult.text);
 
   M5.Lcd.setTextSize(1);
@@ -704,6 +711,7 @@ void setup() {
     // Initial Strava sync
     syncStrava();
     lastStravaSyncMs = millis();
+    stravaSyncNeeded = false;
 
     // Initial weather fetch
     fetchWeather();
@@ -727,6 +735,8 @@ void loop() {
     syncStrava();
     lastWeatherSyncMs = now;
     lastStravaSyncMs = now;
+    weatherSyncNeeded = false;
+    stravaSyncNeeded = false;
     drawEnvPanel();
     drawInfoPanel();
     drawMaintenancePanel();
@@ -790,19 +800,12 @@ void loop() {
     }
   }
 
-  // Strava periodic sync (every 10 min)
-  if (WiFi.status() == WL_CONNECTED &&
-      (now - lastStravaSyncMs) >= STRAVA_SYNC_INTERVAL_MS) {
-    lastStravaSyncMs = now;
-    syncStrava();
-    drawInfoPanel();
-  }
-
-  // Strava initial sync after WiFi reconnects
-  if (stravaSyncNeeded && WiFi.status() == WL_CONNECTED && ntpSynced) {
+  // Strava sync (periodic or after reconnect)
+  bool periodicStravaSync = (now - lastStravaSyncMs) >= STRAVA_SYNC_INTERVAL_MS;
+  if ((stravaSyncNeeded || periodicStravaSync) && WiFi.status() == WL_CONNECTED && ntpSynced) {
     stravaSyncNeeded = false;
-    syncStrava();
     lastStravaSyncMs = now;
+    syncStrava();
     drawInfoPanel();
   }
 

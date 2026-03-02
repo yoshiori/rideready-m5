@@ -4,19 +4,27 @@
 static const uint64_t MS_PER_HOUR = 3600ULL * 1000ULL;
 static const int SECONDS_PER_DAY = 86400;
 static const int DATE_THRESHOLD_DAYS = 7;
+static const int WARNING_DAYS = 7;
+static const int CRITICAL_DAYS = 14;
+static const int WARNING_KM = 300;
+static const int CRITICAL_KM = 400;
 
 MaintenanceDisplayResult MaintenanceDisplay::format(time_t resetEpoch,
                                                      time_t currentEpoch,
                                                      uint64_t elapsedMs) {
   MaintenanceDisplayResult result;
 
+  int severityDays = 0;
+
   if (resetEpoch == 0 || currentEpoch == 0) {
     // NTP not synced: fallback to hours
     uint32_t hours = static_cast<uint32_t>(elapsedMs / MS_PER_HOUR);
     snprintf(result.text, sizeof(result.text), "%u h", hours);
+    severityDays = static_cast<int>(hours / 24);
   } else {
     int days = static_cast<int>((currentEpoch - resetEpoch) / SECONDS_PER_DAY);
     if (days < 0) days = 0;
+    severityDays = days;
 
     if (days > DATE_THRESHOLD_DAYS) {
       // Show reset date as MM/DD
@@ -28,6 +36,14 @@ MaintenanceDisplayResult MaintenanceDisplay::format(time_t resetEpoch,
     }
   }
 
+  if (severityDays >= CRITICAL_DAYS) {
+    result.severity = Severity::CRITICAL;
+  } else if (severityDays >= WARNING_DAYS) {
+    result.severity = Severity::WARNING;
+  } else {
+    result.severity = Severity::NORMAL;
+  }
+
   return result;
 }
 
@@ -36,5 +52,14 @@ MaintenanceDisplayResult MaintenanceDisplay::formatDistance(float distanceKm) {
   int km = static_cast<int>(distanceKm);
   if (km < 0) km = 0;
   snprintf(result.text, sizeof(result.text), "%d km", km);
+
+  if (km >= CRITICAL_KM) {
+    result.severity = Severity::CRITICAL;
+  } else if (km >= WARNING_KM) {
+    result.severity = Severity::WARNING;
+  } else {
+    result.severity = Severity::NORMAL;
+  }
+
   return result;
 }

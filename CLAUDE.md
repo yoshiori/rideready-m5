@@ -100,6 +100,11 @@
 +-------------------------------------+
 ```
 
+## Maintenance Color Thresholds
+- **Tire Pressure**: WHITE (0-6 days) → YELLOW (7-13 days) → RED (14+ days)
+- **Chain Lube**: WHITE (0-299 km) → YELLOW (300-399 km) → RED (400+ km)
+- Severity logic lives in `lib/MaintenanceDisplay` (testable), color mapping in `main.cpp`
+
 ## Button Map
 - **A button**: Manual sync (Weather + Strava)
 - **B button**: Reset Tire Pressure timer
