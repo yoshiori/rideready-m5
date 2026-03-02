@@ -63,6 +63,8 @@ StravaStats stravaStats = {};
 StravaActivity stravaLatestActivity = {};
 bool stravaDataValid = false;
 bool stravaSyncNeeded = true;
+unsigned long stravaBackoffUntilMs = 0;
+static const unsigned long STRAVA_BACKOFF_MS = 900000;  // 15 min after 429
 
 // Chain lube distance tracking
 float chainLubeDistanceKm = 0.0f;
@@ -359,6 +361,12 @@ bool fetchChainLubeDistance(bool isRetry = false) {
 void syncStrava() {
   if (WiFi.status() != WL_CONNECTED) return;
 
+  // Skip if in backoff period after HTTP 429
+  if (millis() < stravaBackoffUntilMs) {
+    Serial.println("Strava sync skipped (rate limit backoff)");
+    return;
+  }
+
   Serial.println("Strava sync starting...");
 
   if (!ensureStravaToken()) {
@@ -369,6 +377,21 @@ void syncStrava() {
   bool statsOk = fetchStravaStats();
   bool activityOk = fetchStravaLatestActivity();
   bool chainDistOk = fetchChainLubeDistance();
+
+  // If all calls failed, force token refresh and retry once.
+  // Rate limits may be per-token; a fresh token gets a clean slate.
+  if (!statsOk && !activityOk && !chainDistOk) {
+    Serial.println("Strava: all calls failed, refreshing token and retrying");
+    if (refreshStravaToken()) {
+      statsOk = fetchStravaStats();
+      activityOk = fetchStravaLatestActivity();
+      chainDistOk = fetchChainLubeDistance();
+    }
+    if (!statsOk && !activityOk && !chainDistOk) {
+      stravaBackoffUntilMs = millis() + STRAVA_BACKOFF_MS;
+      Serial.println("Strava: still failing after refresh, backing off 15 min");
+    }
+  }
 
   if (statsOk || activityOk) {
     stravaDataValid = true;
@@ -734,25 +757,11 @@ void loop() {
 
   unsigned long now = millis();
 
-  // A button: manual fetch (weather + Strava)
-  // GPIO39 is prone to WiFi-induced ghost triggers (ESP32 errata).
-  // wasReleasefor(50) requires held >= 50ms to filter noise spikes.
-  if (M5.BtnA.wasReleasefor(50)) {
-    Serial.println("Manual sync triggered (A button)");
-    fetchWeather();
-    syncStrava();
-    lastWeatherSyncMs = now;
-    lastStravaSyncMs = now;
-    weatherSyncNeeded = false;
-    stravaSyncNeeded = false;
-    drawEnvPanel();
-    drawInfoPanel();
-    drawMaintenancePanel();
-    M5.update();  // Flush stale button state after long network ops
-  }
+  // A button: disabled — GPIO39 ghost triggers (ESP32 errata) cause
+  // unintended API calls that exhaust Strava rate limits.
 
   // B button: reset Tire Pressure timer
-  else if (M5.BtnB.wasReleased()) {
+  if (M5.BtnB.wasReleased()) {
     uint64_t cumNow = currentCumulativeMs();
     tirePressure.reset(cumNow);
     updateResetEpoch(tirePressure);
