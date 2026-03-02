@@ -730,7 +730,8 @@ void loop() {
   unsigned long now = millis();
 
   // A button: manual fetch (weather + Strava)
-  if (M5.BtnA.wasPressed()) {
+  if (M5.BtnA.wasReleased()) {
+    Serial.println("Manual sync triggered (A button)");
     fetchWeather();
     syncStrava();
     lastWeatherSyncMs = now;
@@ -740,11 +741,11 @@ void loop() {
     drawEnvPanel();
     drawInfoPanel();
     drawMaintenancePanel();
-    Serial.println("Manual sync triggered (A button)");
+    M5.update();  // Flush stale button state after long network ops
   }
 
   // B button: reset Tire Pressure timer
-  if (M5.BtnB.wasPressed()) {
+  if (M5.BtnB.wasReleased()) {
     uint64_t cumNow = currentCumulativeMs();
     tirePressure.reset(cumNow);
     updateResetEpoch(tirePressure);
@@ -754,7 +755,7 @@ void loop() {
   }
 
   // C button: reset Chain Lube
-  if (M5.BtnC.wasPressed()) {
+  if (M5.BtnC.wasReleased()) {
     uint64_t cumNow = currentCumulativeMs();
     chainLube.reset(cumNow);
     updateResetEpoch(chainLube);
@@ -807,6 +808,7 @@ void loop() {
     lastStravaSyncMs = now;
     syncStrava();
     drawInfoPanel();
+    M5.update();  // Flush stale button state after long network ops
   }
 
   // Weather sync (periodic or after reconnect)
@@ -816,6 +818,7 @@ void loop() {
     lastWeatherSyncMs = now;
     fetchWeather();
     drawEnvPanel();
+    M5.update();  // Flush stale button state after long network ops
   }
 
   // Periodic sensor read
