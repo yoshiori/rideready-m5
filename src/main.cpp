@@ -739,8 +739,8 @@ void loop() {
     Serial.println("Manual sync triggered (A button)");
     fetchWeather();
     syncStrava();
-    lastWeatherSyncMs = millis();
-    lastStravaSyncMs = millis();
+    lastWeatherSyncMs = now;
+    lastStravaSyncMs = now;
     weatherSyncNeeded = false;
     stravaSyncNeeded = false;
     drawEnvPanel();
