@@ -85,21 +85,24 @@
 
 ## Screen Layout (320x240)
 ```
-+---[Room]----------+--[INFO]---------+
-| (0,0)-(159,119)   | (160,0)-(319,119)|
-| [therm] 25.3 °C   |  14:32          |
-| [drop] 48.2% 1014→hPa | 2026/03/02 |
-+─ ─ ─ ─ ─ ─ ─ ─ ─ +  1234 km        |
-| [Out]              |                 |
-| [wx] 5km/h SW      |                 |
-|      Rain 3h: 20%  |                 |
-+--------------------+-----------------+
-| (0,120)-(319,239)                    |
-|  Maintenance Panel                   |
-|  Tire Pressure    Chain Lube         |
-|     3 days         245 km            |
-+--------------------------------------+
++---[Room]----------+--[INFO]---WiFi--14:32-+
+| (0,0)-(159,119)   | (160,0)-(319,119)     |
+| [therm] 25.3 °C   |  [bike] 12345 km      |
+| [drop] 48.2% 1014→hPa | Wk  80km          |
++─ ─ ─ ─ ─ ─ ─ ─ ─ + [████████░░░░|░░░░░]  |
+| [Out]              |  Mo 1200km UP 8000m   |
+| [wx] 5km/h SW      |           Up: 5m32s  |
+|      Rain 3h: 20%  |                      |
++--------------------+----------------------+
+| (0,120)-(319,239)                         |
+|  Maintenance Panel                        |
+|  Tire Pressure    Chain Lube              |
+|     3 days         245 km                 |
++-------------------------------------------+
 ```
+- INFO panel progress bar: green fill up to current, | marker at weekly average
+  - Below average: green only
+  - Above average: green to avg + cyan for excess
 
 ## Maintenance Color Thresholds
 - **Tire Pressure**: WHITE (0-6 days) → YELLOW (7-13 days) → RED (14+ days)

@@ -76,8 +76,14 @@ char stravaAccessToken[256] = "";
 char stravaRefreshToken[256] = "";
 unsigned long stravaExpiresAt = 0;
 StravaStats stravaStats = {};
-StravaActivity stravaLatestActivity = {};
+StravaActivity stravaLatestActivity = {"Morning Ride", 25.3f, 3900};
 bool stravaDataValid = false;
+
+// Weekly/Monthly stats (dummy — API integration later)
+float weeklyDistanceKm = 80.0f;
+float weeklyAverageKm = 120.0f;
+float monthlyDistanceKm = 1200.0f;
+float monthlyElevationM = 8000.0f;
 bool stravaSyncNeeded = true;
 unsigned long stravaBackoffUntilMs = 0;
 static const unsigned long STRAVA_BACKOFF_MS = 900000;  // 15 min after 429
@@ -734,21 +740,8 @@ void drawInfoPanel() {
 
   // --- Content area ---
 
-  // Date
-  M5.Lcd.setTextFont(2);
-  M5.Lcd.setTextPadding(100);
-  if (hasTime) {
-    M5.Lcd.setTextColor(COL_TEXT_SECONDARY, COL_BG);
-    snprintf(buf, sizeof(buf), "%04d/%02d/%02d",
-             timeinfo.tm_year + 1900, timeinfo.tm_mon + 1, timeinfo.tm_mday);
-  } else {
-    M5.Lcd.setTextColor(COL_TEXT_MUTED, COL_BG);
-    snprintf(buf, sizeof(buf), "----/--/--");
-  }
-  M5.Lcd.drawString(buf, 164, 22);
-
-  // Strava total distance (prominent)
-  drawBicycle(164, 50, COL_ACCENT_AMBER);
+  // Strava total distance (hero)
+  drawBicycle(164, 24, COL_ACCENT_AMBER);
   M5.Lcd.setTextFont(4);
   M5.Lcd.setTextSize(1);
   M5.Lcd.setTextPadding(110);
@@ -759,7 +752,59 @@ void drawInfoPanel() {
     M5.Lcd.setTextColor(COL_TEXT_MUTED, COL_BG);
     snprintf(buf, sizeof(buf), "--- km");
   }
-  M5.Lcd.drawString(buf, 186, 48);
+  M5.Lcd.drawString(buf, 186, 22);
+
+  // Weekly distance label
+  M5.Lcd.setTextFont(2);
+  M5.Lcd.setTextSize(1);
+  M5.Lcd.setTextColor(COL_ACCENT_GREEN, COL_BG);
+  M5.Lcd.setTextPadding(155);
+  snprintf(buf, sizeof(buf), "Wk  %.0fkm", weeklyDistanceKm);
+  M5.Lcd.drawString(buf, 164, 50);
+
+  // Weekly progress bar (average-based)
+  {
+    int barX = 164, barY = 66, barW = 150, barH = 14;
+    float maxKm = weeklyAverageKm * 1.5f;
+    if (maxKm < 1.0f) maxKm = 1.0f;
+
+    // Average marker position
+    int avgPos = static_cast<int>(barW * (weeklyAverageKm / maxKm));
+
+    // Current distance position (capped to bar width)
+    float ratio = weeklyDistanceKm / maxKm;
+    if (ratio > 1.0f) ratio = 1.0f;
+    if (ratio < 0.0f) ratio = 0.0f;
+    int fillW = static_cast<int>(barW * ratio);
+
+    // Draw background
+    M5.Lcd.fillRect(barX, barY, barW, barH, COL_HEADER_BG);
+
+    if (weeklyDistanceKm <= weeklyAverageKm) {
+      // Below average: green fill only
+      if (fillW > 0) {
+        M5.Lcd.fillRect(barX, barY, fillW, barH, COL_ACCENT_GREEN);
+      }
+    } else {
+      // Above average: green up to avg, cyan for excess
+      M5.Lcd.fillRect(barX, barY, avgPos, barH, COL_ACCENT_GREEN);
+      M5.Lcd.fillRect(barX + avgPos, barY, fillW - avgPos, barH,
+                       COL_ACCENT_CYAN);
+    }
+
+    // Average marker line
+    M5.Lcd.fillRect(barX + avgPos, barY - 1, 2, barH + 2,
+                     COL_TEXT_PRIMARY);
+  }
+
+  // Monthly distance + elevation
+  M5.Lcd.setTextFont(2);
+  M5.Lcd.setTextSize(1);
+  M5.Lcd.setTextColor(COL_TEXT_SECONDARY, COL_BG);
+  M5.Lcd.setTextPadding(155);
+  snprintf(buf, sizeof(buf), "Mo %.0fkm UP %.0fm",
+           monthlyDistanceKm, monthlyElevationM);
+  M5.Lcd.drawString(buf, 164, 80);
 
   // Uptime (right-aligned, bottom)
   unsigned long uptimeSec = millis() / 1000;
@@ -769,7 +814,7 @@ void drawInfoPanel() {
   M5.Lcd.setTextDatum(TR_DATUM);
   M5.Lcd.setTextPadding(80);
   snprintf(buf, sizeof(buf), "Up: %lum%lus", uptimeSec / 60, uptimeSec % 60);
-  M5.Lcd.drawString(buf, 316, 106);
+  M5.Lcd.drawString(buf, 316, 100);
   M5.Lcd.setTextDatum(TL_DATUM);
 
   M5.Lcd.setTextPadding(0);
