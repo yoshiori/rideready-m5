@@ -46,6 +46,18 @@
 - **Chain Lube**: distance-based display — Strava API fetches activities since reset, sums distance in km
   - ≥500 km → RED warning color
   - Shows "0 km" until Strava sync completes after reset
+
+## Open-Meteo Weather API
+- `src/weather_config.h` contains latitude/longitude (`#define WEATHER_LAT` / `WEATHER_LON`)
+- `src/weather_config.h.example` is the template; `src/weather_config.h` is gitignored
+- Free API, no authentication required (10,000 req/day limit)
+- Endpoint: `https://api.open-meteo.com/v1/forecast` with `current` + `hourly` params
+- Fetches: wind speed (km/h), wind direction (degrees→8-compass), weather code, 3h precipitation probability
+- Sync interval: 30 minutes
+- **A button**: Manual fetch (weather + Strava)
+- Displayed in ENV panel (CYAN, textSize 1) below hPa line
+- `WiFiClientSecure` + `HTTPClient` with `setInsecure()` (same pattern as Strava)
+
 ## Strava API
 - `src/strava_config.h` contains Client ID/Secret/Refresh Token/Athlete ID
 - `src/strava_config.h.example` is the template; `src/strava_config.h` is gitignored
@@ -79,6 +91,7 @@
 |  48.2 %          |  2026/03/02      |
 |  1014 -          |  WiFi: MySSID    |
 |  hPa             |  1234 km         |
+|  5km/h SW R3h:20%|                  |
 +------------------+------------------+
 | (0,120)-(319,239)                   |
 |  Maintenance Panel                  |
@@ -86,3 +99,8 @@
 |     3 days         245 km           |
 +-------------------------------------+
 ```
+
+## Button Map
+- **A button**: Manual sync (Weather + Strava)
+- **B button**: Reset Tire Pressure timer
+- **C button**: Reset Chain Lube (distance + epoch)

@@ -3,3 +3,4 @@
 compile_commands.json
 src/wifi_config.h
 src/strava_config.h
+src/weather_config.h
