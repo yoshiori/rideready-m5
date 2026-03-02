@@ -100,6 +100,47 @@ void test_parse_stats_missing_ride_totals(void) {
   TEST_ASSERT_FALSE(ok);
 }
 
+// --- parseActivitiesDistance tests ---
+
+void test_parse_activities_distance_multiple(void) {
+  const char* json = R"([
+    {"name": "Ride 1", "distance": 30000.0, "moving_time": 3600},
+    {"name": "Ride 2", "distance": 20000.0, "moving_time": 2400},
+    {"name": "Ride 3", "distance": 50000.0, "moving_time": 6000}
+  ])";
+
+  float totalKm = 0.0f;
+  bool ok = StravaClient::parseActivitiesDistance(json, totalKm);
+  TEST_ASSERT_TRUE(ok);
+  TEST_ASSERT_FLOAT_WITHIN(0.1f, 100.0f, totalKm);
+}
+
+void test_parse_activities_distance_empty_array(void) {
+  const char* json = "[]";
+
+  float totalKm = -1.0f;
+  bool ok = StravaClient::parseActivitiesDistance(json, totalKm);
+  TEST_ASSERT_TRUE(ok);
+  TEST_ASSERT_FLOAT_WITHIN(0.01f, 0.0f, totalKm);
+}
+
+void test_parse_activities_distance_single(void) {
+  const char* json = R"([{"name": "Solo", "distance": 42195.0, "moving_time": 5400}])";
+
+  float totalKm = 0.0f;
+  bool ok = StravaClient::parseActivitiesDistance(json, totalKm);
+  TEST_ASSERT_TRUE(ok);
+  TEST_ASSERT_FLOAT_WITHIN(0.1f, 42.2f, totalKm);
+}
+
+void test_parse_activities_distance_invalid_json(void) {
+  const char* json = "not json at all";
+
+  float totalKm = 0.0f;
+  bool ok = StravaClient::parseActivitiesDistance(json, totalKm);
+  TEST_ASSERT_FALSE(ok);
+}
+
 // --- parseActivity tests ---
 
 void test_parse_activity_success(void) {
@@ -151,6 +192,10 @@ int main(int argc, char** argv) {
   RUN_TEST(test_parse_stats_success);
   RUN_TEST(test_parse_stats_invalid_json);
   RUN_TEST(test_parse_stats_missing_ride_totals);
+  RUN_TEST(test_parse_activities_distance_multiple);
+  RUN_TEST(test_parse_activities_distance_empty_array);
+  RUN_TEST(test_parse_activities_distance_single);
+  RUN_TEST(test_parse_activities_distance_invalid_json);
   RUN_TEST(test_parse_activity_success);
   RUN_TEST(test_parse_activity_empty_array);
   RUN_TEST(test_parse_activity_long_name_truncated);

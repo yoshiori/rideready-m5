@@ -30,3 +30,11 @@ MaintenanceDisplayResult MaintenanceDisplay::format(time_t resetEpoch,
 
   return result;
 }
+
+MaintenanceDisplayResult MaintenanceDisplay::formatDistance(float distanceKm) {
+  MaintenanceDisplayResult result;
+  int km = static_cast<int>(distanceKm);
+  if (km < 0) km = 0;
+  snprintf(result.text, sizeof(result.text), "%d km", km);
+  return result;
+}

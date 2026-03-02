@@ -39,17 +39,20 @@
 
 ## Maintenance Tracker
 - **B button**: Reset Tire Pressure timer
-- **C button**: Reset Chain Lube
+- **C button**: Reset Chain Lube (distance + epoch)
 - Cumulative uptime tracked via `millis()` and persisted to NVS every 60s
 - When NTP is synced, resets also store Unix epoch for date-based display
-- Display: NTP synced → "N days" (≤7) or "MM/DD" (>7); NTP not synced → "N h"
+- **Tire Pressure**: time-based display — NTP synced → "N days" (≤7) or "MM/DD" (>7); NTP not synced → "N h"
+- **Chain Lube**: distance-based display — Strava API fetches activities since reset, sums distance in km
+  - ≥500 km → RED warning color
+  - Shows "0 km" until Strava sync completes after reset
 ## Strava API
 - `src/strava_config.h` contains Client ID/Secret/Refresh Token/Athlete ID
 - `src/strava_config.h.example` is the template; `src/strava_config.h` is gitignored
 - OAuth2 refresh token flow: initial token obtained manually via browser
 - Token auto-refresh before expiry (6h lifetime, 5min buffer)
 - Tokens persisted in NVS (`strava_at`, `strava_rt`, `strava_exp`)
-- Endpoints: `/athletes/{id}/stats` (total distance), `/athlete/activities?per_page=1` (latest ride)
+- Endpoints: `/athletes/{id}/stats` (total distance), `/athlete/activities?per_page=1` (latest ride), `/athlete/activities?after={epoch}&per_page=200` (chain lube distance)
 - Sync interval: 10 minutes
 - `WiFiClientSecure` + `HTTPClient` with `setInsecure()` (no cert pinning)
 - `ArduinoJson` v7 for JSON parsing (`JsonDocument`, not deprecated `StaticJsonDocument`)
@@ -65,6 +68,7 @@
 | `strava_at` | String | Strava access token |
 | `strava_rt` | String | Strava refresh token |
 | `strava_exp` | ULong64 | Strava token expires_at (Unix epoch) |
+| `chain_dist` | Float | Cached chain lube distance since reset (km) |
 
 ## Screen Layout (320x240)
 ```
@@ -78,6 +82,7 @@
 +------------------+------------------+
 | (0,120)-(319,239)                   |
 |  Maintenance Panel                  |
-|  Tire Pressure / Chain Lube         |
+|  Tire Pressure    Chain Lube        |
+|     3 days         245 km           |
 +-------------------------------------+
 ```

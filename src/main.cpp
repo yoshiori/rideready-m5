@@ -61,6 +61,11 @@ StravaActivity stravaLatestActivity = {};
 bool stravaDataValid = false;
 bool stravaSyncNeeded = true;
 
+// Chain lube distance tracking
+float chainLubeDistanceKm = 0.0f;
+bool chainLubeDistanceValid = false;
+static const float CHAIN_LUBE_DISTANCE_WARN_KM = 500.0f;
+
 static uint64_t currentCumulativeMs() {
   return cumulativeUptimeMs + (millis() - lastUptimeUpdateMs);
 }
@@ -292,6 +297,55 @@ bool fetchStravaLatestActivity() {
   return false;
 }
 
+bool fetchChainLubeDistance(bool isRetry = false) {
+  time_t resetEpoch = chainLube.resetEpoch();
+  if (resetEpoch == 0) {
+    // No reset epoch recorded; cannot query by date
+    chainLubeDistanceValid = false;
+    return false;
+  }
+
+  WiFiClientSecure client;
+  client.setInsecure();
+
+  HTTPClient http;
+  String url = "https://www.strava.com/api/v3/athlete/activities?after=" +
+               String(static_cast<unsigned long>(resetEpoch)) + "&per_page=200";
+
+  if (!http.begin(client, url)) {
+    return false;
+  }
+
+  http.addHeader("Authorization", "Bearer " + String(stravaAccessToken));
+
+  int httpCode = http.GET();
+  Serial.printf("Strava chain lube distance: HTTP %d\n", httpCode);
+
+  if (httpCode == 200) {
+    String response = http.getString();
+    float totalKm = 0.0f;
+    bool ok = StravaClient::parseActivitiesDistance(response.c_str(), totalKm);
+    http.end();
+    if (ok) {
+      chainLubeDistanceKm = totalKm;
+      chainLubeDistanceValid = true;
+      Serial.printf("Chain lube distance since reset: %.1f km\n", totalKm);
+    }
+    return ok;
+  }
+
+  if (httpCode == 401 && !isRetry) {
+    Serial.println("Strava: Unauthorized, will refresh token");
+    http.end();
+    if (refreshStravaToken()) {
+      return fetchChainLubeDistance(true);
+    }
+  }
+
+  http.end();
+  return false;
+}
+
 void syncStrava() {
   if (WiFi.status() != WL_CONNECTED) return;
 
@@ -304,13 +358,15 @@ void syncStrava() {
 
   bool statsOk = fetchStravaStats();
   bool activityOk = fetchStravaLatestActivity();
+  bool chainDistOk = fetchChainLubeDistance();
 
   if (statsOk || activityOk) {
     stravaDataValid = true;
   }
 
-  Serial.printf("Strava sync done: stats=%s activity=%s\n",
-                statsOk ? "OK" : "FAIL", activityOk ? "OK" : "FAIL");
+  Serial.printf("Strava sync done: stats=%s activity=%s chainDist=%s\n",
+                statsOk ? "OK" : "FAIL", activityOk ? "OK" : "FAIL",
+                chainDistOk ? "OK" : "FAIL");
 }
 
 // --- Sensors ---
@@ -462,15 +518,7 @@ void drawMaintenancePanel() {
   M5.Lcd.setTextColor(GREEN, BLACK);
   M5.Lcd.print("[B] Reset");
 
-  // Chain Lube - right side
-  uint64_t chainElapsedMs = 0;
-  if (now > chainLube.resetUptimeMs()) {
-    chainElapsedMs = now - chainLube.resetUptimeMs();
-  }
-  MaintenanceDisplayResult chainResult =
-      MaintenanceDisplay::format(chainLube.resetEpoch(), currentEpoch,
-                                 chainElapsedMs);
-
+  // Chain Lube - right side (always distance-based)
   M5.Lcd.setTextColor(WHITE, BLACK);
   M5.Lcd.setTextSize(1);
   M5.Lcd.setCursor(184, 144);
@@ -478,6 +526,11 @@ void drawMaintenancePanel() {
 
   M5.Lcd.setTextSize(2);
   M5.Lcd.setCursor(192, 162);
+  MaintenanceDisplayResult chainResult =
+      MaintenanceDisplay::formatDistance(chainLubeDistanceKm);
+  if (chainLubeDistanceKm >= CHAIN_LUBE_DISTANCE_WARN_KM) {
+    M5.Lcd.setTextColor(RED, BLACK);
+  }
   M5.Lcd.print(chainResult.text);
 
   M5.Lcd.setTextSize(1);
@@ -499,6 +552,7 @@ void saveToNvs() {
                           static_cast<uint64_t>(tirePressure.resetEpoch()));
   preferences.putULong64("chain_epoch",
                           static_cast<uint64_t>(chainLube.resetEpoch()));
+  preferences.putFloat("chain_dist", chainLubeDistanceKm);
 }
 
 void setup() {
@@ -529,6 +583,12 @@ void setup() {
   }
   if (chainEpoch > 0) {
     chainLube.setResetEpoch(static_cast<time_t>(chainEpoch));
+  }
+
+  // Restore chain lube distance cache
+  chainLubeDistanceKm = preferences.getFloat("chain_dist", 0.0f);
+  if (chainLubeDistanceKm > 0.0f) {
+    chainLubeDistanceValid = true;
   }
 
   // Restore Strava tokens
@@ -599,9 +659,13 @@ void loop() {
     uint64_t cumNow = currentCumulativeMs();
     chainLube.reset(cumNow);
     updateResetEpoch(chainLube);
+    chainLubeDistanceKm = 0.0f;
+    chainLubeDistanceValid = false;
+    preferences.putFloat("chain_dist", 0.0f);
     saveToNvs();
+    stravaSyncNeeded = true;
     drawMaintenancePanel();
-    Serial.println("Chain Lube reset");
+    Serial.println("Chain Lube reset (distance cleared)");
   }
 
   // Wi-Fi reconnection (every 30s)

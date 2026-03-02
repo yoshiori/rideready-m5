@@ -16,6 +16,7 @@ public:
   // elapsedMs: elapsed milliseconds since reset (millis-based fallback)
   static MaintenanceDisplayResult format(time_t resetEpoch, time_t currentEpoch,
                                          uint64_t elapsedMs);
+  static MaintenanceDisplayResult formatDistance(float distanceKm);
 };
 
 #endif
