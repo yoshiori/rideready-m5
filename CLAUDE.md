@@ -94,11 +94,11 @@
 | [wx] 5km/h SW      |           Up: 5m32s  |
 |      Rain 3h: 20%  |                      |
 +--------------------+----------------------+
-| (0,120)-(319,239)                         |
-|  Maintenance Panel                        |
-|  Tire Pressure    Chain Lube              |
-|     3 days         245 km                 |
-+-------------------------------------------+
+|--[Tire]------------------[Chain]---------|
+|      [TIRE 36px]       [CHAIN 72px]      |
+|       3 days              245 km         |
+|        ◀ B Reset ▷ C Reset               |
++------------------------------------------+
 ```
 - INFO panel progress bar: green fill up to current, | marker at weekly average
   - Below average: green only
