@@ -1,0 +1,17 @@
+#ifndef WEATHER_CLIENT_H
+#define WEATHER_CLIENT_H
+
+struct WeatherData {
+  float wind_speed_kmh;
+  int wind_direction_deg;
+  int weather_code;
+  int precipitation_probability_3h;  // -1 if unavailable
+};
+
+class WeatherClient {
+public:
+  static bool parseWeather(const char* json, WeatherData& out);
+  static const char* windDirectionToCompass(int degrees);
+};
+
+#endif

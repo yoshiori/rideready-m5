@@ -13,6 +13,8 @@
 #include "pressure_trend.h"
 #include "strava_client.h"
 #include "strava_config.h"
+#include "weather_client.h"
+#include "weather_config.h"
 #include "wifi_config.h"
 
 static const uint8_t ENV_SDA = 21;
@@ -25,6 +27,7 @@ static const unsigned long NTP_CHECK_INTERVAL_MS = 5000;
 static const unsigned long WIFI_CONNECT_TIMEOUT_MS = 10000;
 static const unsigned long STRAVA_SYNC_INTERVAL_MS = 600000;    // 10 min
 static const unsigned long STRAVA_TOKEN_EXPIRY_BUFFER_SEC = 300;  // 5 min
+static const unsigned long WEATHER_SYNC_INTERVAL_MS = 1800000;  // 30 min
 static const long GMT_OFFSET_SEC = 9 * 3600;                   // JST
 
 SHT3X sht3x;
@@ -65,6 +68,12 @@ bool stravaSyncNeeded = true;
 float chainLubeDistanceKm = 0.0f;
 bool chainLubeDistanceValid = false;
 static const float CHAIN_LUBE_DISTANCE_WARN_KM = 500.0f;
+
+// Weather state
+WeatherData weatherData = {};
+bool weatherDataValid = false;
+unsigned long lastWeatherSyncMs = 0;
+bool weatherSyncNeeded = true;
 
 static uint64_t currentCumulativeMs() {
   return cumulativeUptimeMs + (millis() - lastUptimeUpdateMs);
@@ -371,6 +380,50 @@ void syncStrava() {
                 chainDistOk ? "OK" : "FAIL");
 }
 
+// --- Weather API ---
+
+void fetchWeather() {
+  if (WiFi.status() != WL_CONNECTED) return;
+
+  Serial.println("Weather fetch starting...");
+
+  WiFiClientSecure client;
+  client.setInsecure();
+
+  HTTPClient http;
+  String url = "https://api.open-meteo.com/v1/forecast"
+               "?latitude=" WEATHER_LAT
+               "&longitude=" WEATHER_LON
+               "&current=wind_speed_10m,wind_direction_10m,weather_code"
+               "&hourly=precipitation_probability"
+               "&forecast_hours=4"
+               "&timezone=Asia/Tokyo";
+
+  if (!http.begin(client, url)) {
+    Serial.println("Weather: Failed to begin HTTP");
+    return;
+  }
+
+  int httpCode = http.GET();
+  Serial.printf("Weather: HTTP %d\n", httpCode);
+
+  if (httpCode == 200) {
+    String response = http.getString();
+    if (WeatherClient::parseWeather(response.c_str(), weatherData)) {
+      weatherDataValid = true;
+      Serial.printf("Weather: %.0f km/h %s code=%d precip3h=%d%%\n",
+                    weatherData.wind_speed_kmh,
+                    WeatherClient::windDirectionToCompass(weatherData.wind_direction_deg),
+                    weatherData.weather_code,
+                    weatherData.precipitation_probability_3h);
+    } else {
+      Serial.println("Weather: Parse failed");
+    }
+  }
+
+  http.end();
+}
+
 // --- Sensors ---
 
 void readSensors() {
@@ -427,6 +480,23 @@ void drawEnvPanel() {
   M5.Lcd.setTextSize(1);
   M5.Lcd.setCursor(4, 92);
   M5.Lcd.print("hPa");
+
+  // Weather line (wind + precipitation)
+  if (weatherDataValid) {
+    M5.Lcd.setTextColor(CYAN, BLACK);
+    M5.Lcd.setTextSize(1);
+    M5.Lcd.setCursor(4, 104);
+    if (weatherData.precipitation_probability_3h >= 0) {
+      M5.Lcd.printf("%.0fkm/h %s R3h:%d%%",
+                    weatherData.wind_speed_kmh,
+                    WeatherClient::windDirectionToCompass(weatherData.wind_direction_deg),
+                    weatherData.precipitation_probability_3h);
+    } else {
+      M5.Lcd.printf("%.0fkm/h %s",
+                    weatherData.wind_speed_kmh,
+                    WeatherClient::windDirectionToCompass(weatherData.wind_direction_deg));
+    }
+  }
 }
 
 void drawInfoPanel() {
@@ -634,6 +704,11 @@ void setup() {
     // Initial Strava sync
     syncStrava();
     lastStravaSyncMs = millis();
+
+    // Initial weather fetch
+    fetchWeather();
+    lastWeatherSyncMs = millis();
+    weatherSyncNeeded = false;
   }
 
   drawEnvPanel();
@@ -645,6 +720,18 @@ void loop() {
   M5.update();
 
   unsigned long now = millis();
+
+  // A button: manual fetch (weather + Strava)
+  if (M5.BtnA.wasPressed()) {
+    fetchWeather();
+    syncStrava();
+    lastWeatherSyncMs = now;
+    lastStravaSyncMs = now;
+    drawEnvPanel();
+    drawInfoPanel();
+    drawMaintenancePanel();
+    Serial.println("Manual sync triggered (A button)");
+  }
 
   // B button: reset Tire Pressure timer
   if (M5.BtnB.wasPressed()) {
@@ -675,6 +762,7 @@ void loop() {
       (now - lastWifiCheckMs) >= WIFI_RECONNECT_INTERVAL_MS) {
     lastWifiCheckMs = now;
     stravaSyncNeeded = true;  // Re-sync Strava after reconnect
+    weatherSyncNeeded = true;  // Re-sync weather after reconnect
     Serial.println("WiFi disconnected, attempting reconnect...");
     WiFi.reconnect();
   }
@@ -716,6 +804,15 @@ void loop() {
     syncStrava();
     lastStravaSyncMs = now;
     drawInfoPanel();
+  }
+
+  // Weather sync (periodic or after reconnect)
+  bool periodicWeatherSync = (now - lastWeatherSyncMs) >= WEATHER_SYNC_INTERVAL_MS;
+  if ((weatherSyncNeeded || periodicWeatherSync) && WiFi.status() == WL_CONNECTED) {
+    weatherSyncNeeded = false;
+    lastWeatherSyncMs = now;
+    fetchWeather();
+    drawEnvPanel();
   }
 
   // Periodic sensor read

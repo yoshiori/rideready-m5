@@ -1,0 +1,13 @@
+// Copy this file to weather_config.h and fill in your coordinates
+// weather_config.h is excluded from git
+//
+// Uses Open-Meteo API (free, no authentication required)
+// Find your coordinates at https://open-meteo.com/
+
+#ifndef WEATHER_CONFIG_H
+#define WEATHER_CONFIG_H
+
+#define WEATHER_LAT "35.6762"
+#define WEATHER_LON "139.6503"
+
+#endif
