@@ -208,16 +208,34 @@ void drawBicycle(int x, int y, uint16_t color) {
 }
 
 void drawTireIcon(int x, int y, uint16_t color) {
-  M5.Lcd.fillRect(x, y, 16, 16, COL_BG);
-  M5.Lcd.drawCircle(x + 8, y + 8, 7, color);
-  M5.Lcd.drawCircle(x + 8, y + 8, 5, color);
-  M5.Lcd.fillCircle(x + 8, y + 8, 2, color);
+  M5.Lcd.fillRect(x, y, 36, 36, COL_BG);
+  int cx = x + 18, cy = y + 18;
+  // Outer tire (double line)
+  M5.Lcd.drawCircle(cx, cy, 17, color);
+  M5.Lcd.drawCircle(cx, cy, 16, color);
+  // Inner rim
+  M5.Lcd.drawCircle(cx, cy, 12, color);
+  // Hub
+  M5.Lcd.fillCircle(cx, cy, 3, color);
+  // 8 spokes (cardinal + diagonal)
+  M5.Lcd.drawLine(cx, cy - 4, cx, cy - 12, color);
+  M5.Lcd.drawLine(cx, cy + 4, cx, cy + 12, color);
+  M5.Lcd.drawLine(cx - 4, cy, cx - 12, cy, color);
+  M5.Lcd.drawLine(cx + 4, cy, cx + 12, cy, color);
+  M5.Lcd.drawLine(cx + 2, cy - 2, cx + 9, cy - 9, color);
+  M5.Lcd.drawLine(cx - 2, cy - 2, cx - 9, cy - 9, color);
+  M5.Lcd.drawLine(cx + 2, cy + 2, cx + 9, cy + 9, color);
+  M5.Lcd.drawLine(cx - 2, cy + 2, cx - 9, cy + 9, color);
 }
 
 void drawChainIcon(int x, int y, uint16_t color) {
-  M5.Lcd.fillRect(x, y, 22, 12, COL_BG);
-  for (int i = 0; i < 4; i++) {
-    M5.Lcd.drawCircle(x + 3 + i * 5, y + 5, 3, color);
+  M5.Lcd.fillRect(x, y, 72, 36, COL_BG);
+  // 5 interlocking chain links (horizontal rounded rects)
+  for (int i = 0; i < 5; i++) {
+    int lx = x + 1 + i * 13;
+    int ly = y + 11;
+    M5.Lcd.drawRoundRect(lx, ly, 20, 14, 6, color);
+    M5.Lcd.drawRoundRect(lx + 1, ly + 1, 18, 12, 5, color);
   }
 }
 
@@ -605,7 +623,10 @@ void drawStaticLayout() {
   // MAINTENANCE header bar
   M5.Lcd.fillRoundRect(1, 121, 317, 16, 3, COL_HEADER_BG);
   M5.Lcd.setTextColor(COL_ACCENT_AMBER, COL_HEADER_BG);
-  M5.Lcd.drawString("MAINT", 6, 121);
+  M5.Lcd.setTextDatum(TC_DATUM);
+  M5.Lcd.drawString("Tire", 80, 121);
+  M5.Lcd.drawString("Chain", 240, 121);
+  M5.Lcd.setTextDatum(TL_DATUM);
 
   // Dividers
   M5.Lcd.drawFastVLine(160, 0, 120, COL_DIVIDER);
@@ -626,14 +647,38 @@ void drawStaticLayout() {
   drawThermometer(2, 22, COL_ACCENT_CYAN);
   drawDrop(2, 50, COL_ACCENT_CYAN);
 
-  // Button hints (MAINTENANCE)
-  M5.Lcd.setTextFont(1);
-  M5.Lcd.setTextSize(1);
-  M5.Lcd.setTextColor(COL_TEXT_MUTED, COL_BG);
-  M5.Lcd.setTextDatum(TC_DATUM);
-  M5.Lcd.drawString("[B] Reset", 80, 224);
-  M5.Lcd.drawString("[C] Reset", 240, 224);
-  M5.Lcd.setTextDatum(TL_DATUM);
+  // Button hints — Powerline style bar
+  {
+    int h = 12;
+    int arrowW = 6;
+    int by = 228;
+    int startX = 112;   // left arrow tip
+    int sepX = 208;     // separator position
+    int endX = 304;     // right edge
+
+    // Left arrow (triangle pointing left)
+    M5.Lcd.fillTriangle(startX, by + h / 2,
+                         startX + arrowW, by,
+                         startX + arrowW, by + h - 1,
+                         COL_HEADER_BG);
+    // Main bar
+    M5.Lcd.fillRect(startX + arrowW, by, endX - startX - arrowW, h,
+                     COL_HEADER_BG);
+    // Separator (right-pointing arrow cutout in BG color)
+    M5.Lcd.fillTriangle(sepX, by,
+                         sepX, by + h - 1,
+                         sepX + arrowW, by + h / 2,
+                         COL_BG);
+
+    // Text
+    M5.Lcd.setTextFont(1);
+    M5.Lcd.setTextSize(1);
+    M5.Lcd.setTextColor(COL_ACCENT_AMBER, COL_HEADER_BG);
+    M5.Lcd.setTextDatum(MC_DATUM);
+    M5.Lcd.drawString("B Reset", (startX + arrowW + sepX) / 2, by + h / 2);
+    M5.Lcd.drawString("C Reset", (sepX + arrowW + endX) / 2, by + h / 2);
+    M5.Lcd.setTextDatum(TL_DATUM);
+  }
 }
 
 void drawEnvPanel() {
@@ -846,30 +891,30 @@ void drawMaintenancePanel() {
                                  tireElapsedMs);
   uint16_t tireColor = severityColor(tireResult.severity);
 
-  // Tire icon
-  drawTireIcon(72, 144, tireColor);
+  // Tire icon (36x36, centered in left half)
+  drawTireIcon(62, 146, tireColor);
 
-  // Tire value (centered in left half)
+  // Tire value
   M5.Lcd.setTextFont(4);
   M5.Lcd.setTextSize(1);
   M5.Lcd.setTextColor(tireColor, COL_BG);
   M5.Lcd.setTextDatum(TC_DATUM);
   M5.Lcd.setTextPadding(150);
-  M5.Lcd.drawString(tireResult.text, 80, 168);
+  M5.Lcd.drawString(tireResult.text, 80, 186);
 
   // --- Chain Lube (right half) ---
   MaintenanceDisplayResult chainResult =
       MaintenanceDisplay::formatDistance(chainLubeDistanceKm);
   uint16_t chainColor = severityColor(chainResult.severity);
 
-  // Chain icon
-  drawChainIcon(229, 148, chainColor);
+  // Chain icon (72x36, centered in right half)
+  drawChainIcon(204, 146, chainColor);
 
-  // Chain value (centered in right half)
+  // Chain value
   M5.Lcd.setTextFont(4);
   M5.Lcd.setTextColor(chainColor, COL_BG);
   M5.Lcd.setTextPadding(150);
-  M5.Lcd.drawString(chainResult.text, 240, 168);
+  M5.Lcd.drawString(chainResult.text, 240, 186);
 
   M5.Lcd.setTextDatum(TL_DATUM);
   M5.Lcd.setTextPadding(0);
