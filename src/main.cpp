@@ -36,7 +36,7 @@ static const uint16_t COL_BG             = 0x2946;  // #282a36 Background
 static const uint16_t COL_HEADER_BG      = 0x422B;  // #44475a Current Line
 static const uint16_t COL_DIVIDER        = 0x422B;  // #44475a Current Line
 static const uint16_t COL_TEXT_PRIMARY    = 0xFFDE;  // #f8f8f2 Foreground
-static const uint16_t COL_TEXT_SECONDARY  = 0x6394;  // #6272a4 Comment
+static const uint16_t COL_TEXT_SECONDARY  = 0x8CF8;  // #8b9dc7 Light Comment
 static const uint16_t COL_TEXT_MUTED      = 0x6394;  // #6272a4 Comment
 static const uint16_t COL_ACCENT_CYAN    = 0x8F5F;  // #8be9fd Cyan
 static const uint16_t COL_ACCENT_BLUE    = 0xBC9F;  // #bd93f9 Purple
@@ -584,12 +584,12 @@ void readSensors() {
 void drawStaticLayout() {
   M5.Lcd.fillScreen(COL_BG);
 
-  // ENV header bar
+  // Room header bar
   M5.Lcd.fillRoundRect(1, 1, 157, 16, 3, COL_HEADER_BG);
   M5.Lcd.setTextFont(2);
   M5.Lcd.setTextSize(1);
   M5.Lcd.setTextColor(COL_ACCENT_CYAN, COL_HEADER_BG);
-  M5.Lcd.drawString("ENV", 6, 0);
+  M5.Lcd.drawString("Room", 6, 0);
 
   // INFO header bar
   M5.Lcd.fillRoundRect(161, 1, 157, 16, 3, COL_HEADER_BG);
@@ -606,9 +606,19 @@ void drawStaticLayout() {
   M5.Lcd.drawFastHLine(0, 120, 320, COL_DIVIDER);
   M5.Lcd.drawFastVLine(160, 139, 101, COL_DIVIDER);
 
-  // Static ENV icons
-  drawThermometer(4, 24, COL_ACCENT_CYAN);
-  drawDrop(4, 54, COL_ACCENT_CYAN);
+  // Room/Out divider
+  M5.Lcd.drawFastHLine(4, 66, 152, COL_DIVIDER);
+
+  // "Out" sub-header bar
+  M5.Lcd.fillRoundRect(1, 68, 157, 14, 3, COL_HEADER_BG);
+  M5.Lcd.setTextFont(2);
+  M5.Lcd.setTextSize(1);
+  M5.Lcd.setTextColor(COL_ACCENT_CYAN, COL_HEADER_BG);
+  M5.Lcd.drawString("Out", 6, 68);
+
+  // Static Room icons
+  drawThermometer(2, 22, COL_ACCENT_CYAN);
+  drawDrop(2, 50, COL_ACCENT_CYAN);
 
   // Button hints (MAINTENANCE)
   M5.Lcd.setTextFont(1);
@@ -621,76 +631,71 @@ void drawStaticLayout() {
 }
 
 void drawEnvPanel() {
+  char buf[32];
+
+  // --- Room section (sensor data) ---
   if (!sensorOk) {
     M5.Lcd.setTextFont(1);
     M5.Lcd.setTextSize(1);
     M5.Lcd.setTextColor(COL_CRIT_RED, COL_BG);
     M5.Lcd.setTextPadding(140);
-    M5.Lcd.drawString("Sensor Failed!", 18, 30);
+    M5.Lcd.drawString("Sensor Failed!", 16, 34);
     M5.Lcd.setTextPadding(0);
-    return;
+  } else {
+    // Temperature (hero) — Font4, PRIMARY
+    M5.Lcd.setTextFont(4);
+    M5.Lcd.setTextSize(1);
+    M5.Lcd.setTextColor(COL_TEXT_PRIMARY, COL_BG);
+    M5.Lcd.setTextPadding(80);
+    snprintf(buf, sizeof(buf), "%.1f", temperature);
+    int tw = M5.Lcd.drawString(buf, 16, 20);
+    // Degree circle + C
+    M5.Lcd.fillCircle(tw + 19, 23, 2, COL_TEXT_SECONDARY);
+    M5.Lcd.setTextFont(2);
+    M5.Lcd.setTextColor(COL_TEXT_SECONDARY, COL_BG);
+    M5.Lcd.setTextPadding(0);
+    M5.Lcd.drawString("C", tw + 24, 22);
+
+    // Humidity + Pressure compact line — Font2, SECONDARY
+    M5.Lcd.fillRect(14, 48, 142, 16, COL_BG);
+    M5.Lcd.setTextFont(2);
+    M5.Lcd.setTextSize(1);
+    M5.Lcd.setTextColor(COL_TEXT_SECONDARY, COL_BG);
+    snprintf(buf, sizeof(buf), "%.1f%%", humidity);
+    int hw = M5.Lcd.drawString(buf, 16, 48);
+    // Pressure value
+    int px = 16 + hw + 4;
+    snprintf(buf, sizeof(buf), "%.0f", pressure_hpa);
+    int pw = M5.Lcd.drawString(buf, px, 48);
+    // Trend arrow
+    drawTrendArrow(px + pw + 1, 48, pressureTrend.direction(), COL_TEXT_SECONDARY);
+    // hPa label
+    M5.Lcd.setTextFont(1);
+    M5.Lcd.setTextColor(COL_TEXT_MUTED, COL_BG);
+    M5.Lcd.drawString("hPa", px + pw + 13, 52);
   }
 
-  char buf[32];
-
-  // Temperature value (Font 4 = 26px)
-  M5.Lcd.setTextFont(4);
-  M5.Lcd.setTextSize(1);
-  M5.Lcd.setTextColor(COL_TEXT_PRIMARY, COL_BG);
-  M5.Lcd.setTextPadding(80);
-  snprintf(buf, sizeof(buf), "%.1f", temperature);
-  int tw = M5.Lcd.drawString(buf, 16, 20);
-  // Degree circle + C
-  M5.Lcd.fillCircle(tw + 19, 23, 2, COL_TEXT_SECONDARY);
-  M5.Lcd.setTextFont(2);
-  M5.Lcd.setTextColor(COL_TEXT_SECONDARY, COL_BG);
-  M5.Lcd.setTextPadding(0);
-  M5.Lcd.drawString("C", tw + 24, 22);
-
-  // Humidity value
-  M5.Lcd.setTextFont(4);
-  M5.Lcd.setTextColor(COL_TEXT_PRIMARY, COL_BG);
-  M5.Lcd.setTextPadding(80);
-  snprintf(buf, sizeof(buf), "%.1f", humidity);
-  int hw = M5.Lcd.drawString(buf, 16, 50);
-  M5.Lcd.setTextFont(2);
-  M5.Lcd.setTextColor(COL_TEXT_SECONDARY, COL_BG);
-  M5.Lcd.setTextPadding(0);
-  M5.Lcd.drawString("%", hw + 18, 52);
-
-  // Pressure (Font 2 = 16px)
-  M5.Lcd.setTextFont(2);
-  M5.Lcd.setTextColor(COL_TEXT_PRIMARY, COL_BG);
-  M5.Lcd.setTextPadding(55);
-  snprintf(buf, sizeof(buf), "%.0f", pressure_hpa);
-  int pw = M5.Lcd.drawString(buf, 4, 80);
-  // Trend arrow
-  drawTrendArrow(pw + 6, 80, pressureTrend.direction(), COL_TEXT_SECONDARY);
-  // hPa label
-  M5.Lcd.setTextFont(1);
-  M5.Lcd.setTextSize(1);
-  M5.Lcd.setTextColor(COL_TEXT_MUTED, COL_BG);
-  M5.Lcd.setTextPadding(0);
-  M5.Lcd.drawString("hPa", pw + 18, 84);
-
-  // Weather line
+  // --- Out section (weather, independent of sensor) ---
   if (weatherDataValid) {
-    drawWeatherIcon(4, 98, weatherData.weather_code, COL_ACCENT_CYAN);
-    M5.Lcd.setTextFont(1);
+    drawWeatherIcon(4, 84, weatherData.weather_code, COL_ACCENT_CYAN);
+    // Wind speed + direction — Font2, CYAN
+    M5.Lcd.setTextFont(2);
     M5.Lcd.setTextSize(1);
     M5.Lcd.setTextColor(COL_ACCENT_CYAN, COL_BG);
     M5.Lcd.setTextPadding(126);
+    snprintf(buf, sizeof(buf), "%.0fkm/h %s",
+             weatherData.wind_speed_kmh,
+             WeatherClient::windDirectionToCompass(weatherData.wind_direction_deg));
+    M5.Lcd.drawString(buf, 26, 84);
+    // Precipitation probability — Font1, CYAN
     if (weatherData.precipitation_probability_3h >= 0) {
-      snprintf(buf, sizeof(buf), "%.0fkm/h %s R3h:%d%%",
-               weatherData.wind_speed_kmh,
-               WeatherClient::windDirectionToCompass(weatherData.wind_direction_deg),
+      M5.Lcd.setTextFont(1);
+      M5.Lcd.setTextColor(COL_ACCENT_CYAN, COL_BG);
+      M5.Lcd.setTextPadding(126);
+      snprintf(buf, sizeof(buf), "Rain 3h: %d%%",
                weatherData.precipitation_probability_3h);
-    } else {
-      snprintf(buf, sizeof(buf), "%.0fkm/h %s",
-               weatherData.wind_speed_kmh,
-               WeatherClient::windDirectionToCompass(weatherData.wind_direction_deg));
+      M5.Lcd.drawString(buf, 26, 104);
     }
-    M5.Lcd.drawString(buf, 26, 102);
   }
 
   M5.Lcd.setTextPadding(0);
