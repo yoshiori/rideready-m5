@@ -556,12 +556,19 @@ void drawInfoPanel() {
   if (stravaDataValid) {
     M5.Lcd.setTextColor(YELLOW, BLACK);
     M5.Lcd.setTextSize(2);
-    M5.Lcd.setCursor(164, 92);
+    M5.Lcd.setCursor(164, 86);
     M5.Lcd.printf("%.0f km", stravaStats.all_ride_totals_km);
   } else {
     M5.Lcd.setTextColor(DARKGREY, BLACK);
     M5.Lcd.print("--- km");
   }
+
+  // Uptime (resets to 0 on reboot — useful for detecting crashes)
+  unsigned long uptimeSec = millis() / 1000;
+  M5.Lcd.setTextColor(DARKGREY, BLACK);
+  M5.Lcd.setTextSize(1);
+  M5.Lcd.setCursor(164, 108);
+  M5.Lcd.printf("Up: %lum%lus", uptimeSec / 60, uptimeSec % 60);
 }
 
 static uint16_t severityColor(Severity s) {
