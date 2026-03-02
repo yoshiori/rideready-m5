@@ -710,6 +710,7 @@ void setup() {
     // Initial Strava sync
     syncStrava();
     lastStravaSyncMs = millis();
+    stravaSyncNeeded = false;
 
     // Initial weather fetch
     fetchWeather();
@@ -733,6 +734,8 @@ void loop() {
     syncStrava();
     lastWeatherSyncMs = now;
     lastStravaSyncMs = now;
+    weatherSyncNeeded = false;
+    stravaSyncNeeded = false;
     drawEnvPanel();
     drawInfoPanel();
     drawMaintenancePanel();
@@ -796,19 +799,12 @@ void loop() {
     }
   }
 
-  // Strava periodic sync (every 10 min)
-  if (WiFi.status() == WL_CONNECTED &&
-      (now - lastStravaSyncMs) >= STRAVA_SYNC_INTERVAL_MS) {
-    lastStravaSyncMs = now;
-    syncStrava();
-    drawInfoPanel();
-  }
-
-  // Strava initial sync after WiFi reconnects
-  if (stravaSyncNeeded && WiFi.status() == WL_CONNECTED && ntpSynced) {
+  // Strava sync (periodic or after reconnect)
+  bool periodicStravaSync = (now - lastStravaSyncMs) >= STRAVA_SYNC_INTERVAL_MS;
+  if ((stravaSyncNeeded || periodicStravaSync) && WiFi.status() == WL_CONNECTED && ntpSynced) {
     stravaSyncNeeded = false;
-    syncStrava();
     lastStravaSyncMs = now;
+    syncStrava();
     drawInfoPanel();
   }
 
