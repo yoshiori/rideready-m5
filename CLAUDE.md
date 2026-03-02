@@ -5,7 +5,7 @@
 - `mise run upload` — flash to M5Stack via /dev/ttyUSB0
 - `mise exec -- pio test -e native` — run unit tests
 - Upload may fail with "Wrong boot mode" — press reset button on M5Stack and retry
-- `./scripts/serial_monitor.sh [seconds]` — read serial output (default 10s)
+- `./scripts/serial_monitor.sh [seconds] [device]` — read serial output (default 10s, /dev/ttyUSB0)
 
 ## Hardware
 - **Board**: M5Stack Core ESP32 (original, not Core2/CoreS3)

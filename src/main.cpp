@@ -486,7 +486,7 @@ void syncStrava() {
   if (WiFi.status() != WL_CONNECTED) return;
 
   // Skip if in backoff period after HTTP 429
-  if (millis() < stravaBackoffUntilMs) {
+  if (stravaBackoffUntilMs != 0 && (long)(stravaBackoffUntilMs - millis()) > 0) {
     Serial.println("Strava sync skipped (rate limit backoff)");
     return;
   }
