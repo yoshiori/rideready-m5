@@ -140,6 +140,11 @@ void test_chain_severity_300km_warning(void) {
   TEST_ASSERT_EQUAL(Severity::WARNING, result.severity);
 }
 
+void test_chain_severity_399km_warning(void) {
+  MaintenanceDisplayResult result = MaintenanceDisplay::formatDistance(399.9f);
+  TEST_ASSERT_EQUAL(Severity::WARNING, result.severity);
+}
+
 void test_chain_severity_400km_critical(void) {
   MaintenanceDisplayResult result = MaintenanceDisplay::formatDistance(400.0f);
   TEST_ASSERT_EQUAL(Severity::CRITICAL, result.severity);
@@ -190,6 +195,7 @@ int main(int argc, char **argv) {
   RUN_TEST(test_chain_severity_0km_normal);
   RUN_TEST(test_chain_severity_299km_normal);
   RUN_TEST(test_chain_severity_300km_warning);
+  RUN_TEST(test_chain_severity_399km_warning);
   RUN_TEST(test_chain_severity_400km_critical);
   RUN_TEST(test_format_distance_normal);
   RUN_TEST(test_format_distance_zero);

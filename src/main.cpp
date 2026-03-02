@@ -552,6 +552,7 @@ void drawInfoPanel() {
 
 static uint16_t severityColor(Severity s) {
   switch (s) {
+    case Severity::NORMAL:   return WHITE;
     case Severity::WARNING:  return YELLOW;
     case Severity::CRITICAL: return RED;
     default:                 return WHITE;
