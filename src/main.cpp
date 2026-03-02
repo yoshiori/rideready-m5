@@ -645,6 +645,9 @@ void setup() {
   M5.Lcd.setTextSize(2);
   M5.Lcd.setCursor(30, 100);
   M5.Lcd.println("RideReady!");
+  M5.Lcd.setTextSize(1);
+  M5.Lcd.setCursor(30, 125);
+  M5.Lcd.printf("[%s]", GIT_HASH);
 
   // NVS: restore cumulative uptime and maintenance reset times
   preferences.begin("rideready", false);
