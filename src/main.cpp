@@ -259,6 +259,7 @@ bool fetchStravaStats(bool isRetry = false) {
     if (refreshStravaToken()) {
       return fetchStravaStats(true);  // Retry once after refresh
     }
+    return false;
   }
 
   http.end();
@@ -340,6 +341,7 @@ bool fetchChainLubeDistance(bool isRetry = false) {
     if (refreshStravaToken()) {
       return fetchChainLubeDistance(true);
     }
+    return false;
   }
 
   http.end();
