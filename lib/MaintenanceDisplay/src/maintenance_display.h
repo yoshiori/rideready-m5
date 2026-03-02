@@ -4,8 +4,11 @@
 #include <stdint.h>
 #include <ctime>
 
+enum class Severity { NORMAL, WARNING, CRITICAL };
+
 struct MaintenanceDisplayResult {
   char text[16];
+  Severity severity;
 };
 
 class MaintenanceDisplay {
