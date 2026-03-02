@@ -5,6 +5,7 @@
 - `mise run upload` — flash to M5Stack via /dev/ttyUSB0
 - `mise exec -- pio test -e native` — run unit tests
 - Upload may fail with "Wrong boot mode" — press reset button on M5Stack and retry
+- `./scripts/serial_monitor.sh [seconds] [device]` — read serial output (default 10s, /dev/ttyUSB0)
 
 ## Hardware
 - **Board**: M5Stack Core ESP32 (original, not Core2/CoreS3)
@@ -54,7 +55,7 @@
 - Endpoint: `https://api.open-meteo.com/v1/forecast` with `current` + `hourly` params
 - Fetches: wind speed (km/h), wind direction (degrees→8-compass), weather code, 3h precipitation probability
 - Sync interval: 30 minutes
-- **A button**: Manual fetch (weather + Strava)
+- **A button**: Disabled (GPIO39 ghost triggers — ESP32 errata)
 - Displayed in ENV panel (CYAN, textSize 1) below hPa line
 - `WiFiClientSecure` + `HTTPClient` with `setInsecure()` (same pattern as Strava)
 
@@ -106,6 +107,6 @@
 - Severity logic lives in `lib/MaintenanceDisplay` (testable), color mapping in `main.cpp`
 
 ## Button Map
-- **A button**: Manual sync (Weather + Strava)
+- **A button**: Disabled (GPIO39 ghost triggers due to ESP32 errata)
 - **B button**: Reset Tire Pressure timer
 - **C button**: Reset Chain Lube (distance + epoch)
