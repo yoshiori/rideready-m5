@@ -806,19 +806,12 @@ void loop() {
     drawInfoPanel();
   }
 
-  // Weather periodic sync (every 30 min)
-  if (WiFi.status() == WL_CONNECTED &&
-      (now - lastWeatherSyncMs) >= WEATHER_SYNC_INTERVAL_MS) {
-    lastWeatherSyncMs = now;
-    fetchWeather();
-    drawEnvPanel();
-  }
-
-  // Weather sync after WiFi reconnects
-  if (weatherSyncNeeded && WiFi.status() == WL_CONNECTED) {
+  // Weather sync (periodic or after reconnect)
+  bool periodicWeatherSync = (now - lastWeatherSyncMs) >= WEATHER_SYNC_INTERVAL_MS;
+  if ((weatherSyncNeeded || periodicWeatherSync) && WiFi.status() == WL_CONNECTED) {
     weatherSyncNeeded = false;
-    fetchWeather();
     lastWeatherSyncMs = now;
+    fetchWeather();
     drawEnvPanel();
   }
 
