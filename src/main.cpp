@@ -378,19 +378,10 @@ void syncStrava() {
   bool activityOk = fetchStravaLatestActivity();
   bool chainDistOk = fetchChainLubeDistance();
 
-  // If all calls failed, force token refresh and retry once.
-  // Rate limits may be per-token; a fresh token gets a clean slate.
+  // Back off on total failure to avoid burning rate limit quota
   if (!statsOk && !activityOk && !chainDistOk) {
-    Serial.println("Strava: all calls failed, refreshing token and retrying");
-    if (refreshStravaToken()) {
-      statsOk = fetchStravaStats();
-      activityOk = fetchStravaLatestActivity();
-      chainDistOk = fetchChainLubeDistance();
-    }
-    if (!statsOk && !activityOk && !chainDistOk) {
-      stravaBackoffUntilMs = millis() + STRAVA_BACKOFF_MS;
-      Serial.println("Strava: still failing after refresh, backing off 15 min");
-    }
+    stravaBackoffUntilMs = millis() + STRAVA_BACKOFF_MS;
+    Serial.println("Strava sync all failed, backing off 15 min");
   }
 
   if (statsOk || activityOk) {
