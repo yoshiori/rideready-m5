@@ -745,7 +745,7 @@ void loop() {
   }
 
   // B button: reset Tire Pressure timer
-  if (M5.BtnB.wasReleased()) {
+  else if (M5.BtnB.wasReleased()) {
     uint64_t cumNow = currentCumulativeMs();
     tirePressure.reset(cumNow);
     updateResetEpoch(tirePressure);
@@ -755,7 +755,7 @@ void loop() {
   }
 
   // C button: reset Chain Lube
-  if (M5.BtnC.wasReleased()) {
+  else if (M5.BtnC.wasReleased()) {
     uint64_t cumNow = currentCumulativeMs();
     chainLube.reset(cumNow);
     updateResetEpoch(chainLube);
