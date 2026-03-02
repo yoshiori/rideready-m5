@@ -30,6 +30,21 @@ static const unsigned long STRAVA_TOKEN_EXPIRY_BUFFER_SEC = 300;  // 5 min
 static const unsigned long WEATHER_SYNC_INTERVAL_MS = 1800000;  // 30 min
 static const long GMT_OFFSET_SEC = 9 * 3600;                   // JST
 
+// --- Color Palette ---
+static const uint16_t COL_BG             = 0x0000;
+static const uint16_t COL_HEADER_BG      = 0x1926;
+static const uint16_t COL_DIVIDER        = 0x2945;
+static const uint16_t COL_TEXT_PRIMARY    = 0xE73C;
+static const uint16_t COL_TEXT_SECONDARY  = 0x8C71;
+static const uint16_t COL_TEXT_MUTED      = 0x52AA;
+static const uint16_t COL_ACCENT_CYAN    = 0x2E9F;
+static const uint16_t COL_ACCENT_BLUE    = 0x3B7F;
+static const uint16_t COL_ACCENT_GREEN   = 0x2DC9;
+static const uint16_t COL_ACCENT_AMBER   = 0xFCA0;
+static const uint16_t COL_ACCENT_RED     = 0xF8A2;
+static const uint16_t COL_WARN_YELLOW    = 0xFE60;
+static const uint16_t COL_CRIT_RED       = 0xF800;
+
 SHT3X sht3x;
 QMP6988 qmp6988;
 PressureTrend pressureTrend;
@@ -88,6 +103,114 @@ static const char* trendSymbol(TrendDirection dir) {
       return "v";
     default:
       return "-";
+  }
+}
+
+// --- Icon Drawing Helpers ---
+
+void drawThermometer(int x, int y, uint16_t color) {
+  M5.Lcd.fillRect(x + 3, y, 4, 12, color);
+  M5.Lcd.fillCircle(x + 5, y + 14, 4, color);
+}
+
+void drawDrop(int x, int y, uint16_t color) {
+  M5.Lcd.fillTriangle(x + 5, y, x + 1, y + 8, x + 9, y + 8, color);
+  M5.Lcd.fillCircle(x + 5, y + 10, 5, color);
+}
+
+void drawTrendArrow(int x, int y, TrendDirection dir, uint16_t color) {
+  M5.Lcd.fillRect(x, y, 10, 14, COL_BG);
+  if (dir == TrendDirection::TREND_RISING) {
+    M5.Lcd.fillTriangle(x + 4, y, x, y + 6, x + 8, y + 6, color);
+    M5.Lcd.fillRect(x + 2, y + 6, 4, 4, color);
+  } else if (dir == TrendDirection::TREND_FALLING) {
+    M5.Lcd.fillRect(x + 2, y, 4, 4, color);
+    M5.Lcd.fillTriangle(x + 4, y + 10, x, y + 4, x + 8, y + 4, color);
+  } else {
+    M5.Lcd.fillRect(x, y + 4, 8, 3, color);
+  }
+}
+
+void drawWeatherIcon(int x, int y, int code, uint16_t color) {
+  M5.Lcd.fillRect(x, y, 20, 16, COL_BG);
+  if (code == 0) {
+    // Sun
+    M5.Lcd.fillCircle(x + 10, y + 8, 4, color);
+    M5.Lcd.drawLine(x + 10, y, x + 10, y + 2, color);
+    M5.Lcd.drawLine(x + 10, y + 14, x + 10, y + 16, color);
+    M5.Lcd.drawLine(x + 2, y + 8, x + 4, y + 8, color);
+    M5.Lcd.drawLine(x + 16, y + 8, x + 18, y + 8, color);
+    M5.Lcd.drawLine(x + 4, y + 2, x + 6, y + 4, color);
+    M5.Lcd.drawLine(x + 16, y + 2, x + 14, y + 4, color);
+    M5.Lcd.drawLine(x + 4, y + 14, x + 6, y + 12, color);
+    M5.Lcd.drawLine(x + 16, y + 14, x + 14, y + 12, color);
+  } else if (code <= 3) {
+    // Cloud
+    M5.Lcd.fillCircle(x + 6, y + 10, 4, color);
+    M5.Lcd.fillCircle(x + 14, y + 10, 4, color);
+    M5.Lcd.fillCircle(x + 10, y + 6, 5, color);
+    M5.Lcd.fillRect(x + 6, y + 10, 8, 4, color);
+  } else if (code <= 67) {
+    // Rain / drizzle / fog
+    M5.Lcd.fillCircle(x + 5, y + 4, 3, color);
+    M5.Lcd.fillCircle(x + 12, y + 4, 3, color);
+    M5.Lcd.fillCircle(x + 9, y + 2, 3, color);
+    M5.Lcd.fillRect(x + 5, y + 4, 7, 3, color);
+    M5.Lcd.drawLine(x + 5, y + 9, x + 5, y + 13, color);
+    M5.Lcd.drawLine(x + 9, y + 9, x + 9, y + 13, color);
+    M5.Lcd.drawLine(x + 13, y + 9, x + 13, y + 13, color);
+  } else if (code <= 77) {
+    // Snow
+    M5.Lcd.fillCircle(x + 5, y + 4, 3, color);
+    M5.Lcd.fillCircle(x + 12, y + 4, 3, color);
+    M5.Lcd.fillCircle(x + 9, y + 2, 3, color);
+    M5.Lcd.fillRect(x + 5, y + 4, 7, 3, color);
+    M5.Lcd.fillCircle(x + 5, y + 11, 1, color);
+    M5.Lcd.fillCircle(x + 9, y + 13, 1, color);
+    M5.Lcd.fillCircle(x + 13, y + 11, 1, color);
+  } else {
+    // Thunderstorm / heavy rain
+    M5.Lcd.fillCircle(x + 5, y + 4, 3, color);
+    M5.Lcd.fillCircle(x + 12, y + 4, 3, color);
+    M5.Lcd.fillCircle(x + 9, y + 2, 3, color);
+    M5.Lcd.fillRect(x + 5, y + 4, 7, 3, color);
+    M5.Lcd.drawLine(x + 5, y + 9, x + 5, y + 14, color);
+    M5.Lcd.drawLine(x + 9, y + 9, x + 9, y + 14, color);
+    M5.Lcd.drawLine(x + 13, y + 9, x + 13, y + 14, color);
+  }
+}
+
+void drawWifiIcon(int x, int y, uint16_t color) {
+  int cx = x + 8;
+  int cy = y + 11;
+  M5.Lcd.fillRect(x, y, 16, 13, COL_BG);
+  M5.Lcd.drawCircleHelper(cx, cy, 10, 0x1 | 0x8, color);
+  M5.Lcd.drawCircleHelper(cx, cy, 7, 0x1 | 0x8, color);
+  M5.Lcd.drawCircleHelper(cx, cy, 4, 0x1 | 0x8, color);
+  M5.Lcd.fillCircle(cx, cy, 1, color);
+}
+
+void drawBicycle(int x, int y, uint16_t color) {
+  M5.Lcd.fillRect(x, y, 20, 16, COL_BG);
+  M5.Lcd.drawCircle(x + 4, y + 11, 4, color);
+  M5.Lcd.drawCircle(x + 16, y + 11, 4, color);
+  M5.Lcd.drawLine(x + 4, y + 11, x + 10, y + 5, color);
+  M5.Lcd.drawLine(x + 10, y + 5, x + 16, y + 11, color);
+  M5.Lcd.drawLine(x + 4, y + 11, x + 12, y + 11, color);
+  M5.Lcd.drawLine(x + 10, y + 5, x + 7, y + 3, color);
+}
+
+void drawTireIcon(int x, int y, uint16_t color) {
+  M5.Lcd.fillRect(x, y, 16, 16, COL_BG);
+  M5.Lcd.drawCircle(x + 8, y + 8, 7, color);
+  M5.Lcd.drawCircle(x + 8, y + 8, 5, color);
+  M5.Lcd.fillCircle(x + 8, y + 8, 2, color);
+}
+
+void drawChainIcon(int x, int y, uint16_t color) {
+  M5.Lcd.fillRect(x, y, 22, 12, COL_BG);
+  for (int i = 0; i < 4; i++) {
+    M5.Lcd.drawCircle(x + 3 + i * 5, y + 5, 3, color);
   }
 }
 
@@ -457,146 +580,212 @@ void readSensors() {
 
 // --- Display ---
 
-void drawEnvPanel() {
-  // Top-left quadrant: (0,0)-(159,119)
-  M5.Lcd.fillRect(0, 0, 160, 120, BLACK);
-  M5.Lcd.drawRect(0, 0, 160, 120, WHITE);
+void drawStaticLayout() {
+  M5.Lcd.fillScreen(COL_BG);
 
+  // ENV header bar
+  M5.Lcd.fillRoundRect(1, 1, 157, 16, 3, COL_HEADER_BG);
+  M5.Lcd.setTextFont(2);
+  M5.Lcd.setTextSize(1);
+  M5.Lcd.setTextColor(COL_ACCENT_CYAN, COL_HEADER_BG);
+  M5.Lcd.drawString("ENV", 6, 0);
+
+  // INFO header bar
+  M5.Lcd.fillRoundRect(161, 1, 157, 16, 3, COL_HEADER_BG);
+  M5.Lcd.setTextColor(COL_ACCENT_BLUE, COL_HEADER_BG);
+  M5.Lcd.drawString("INFO", 166, 0);
+
+  // MAINTENANCE header bar
+  M5.Lcd.fillRoundRect(1, 121, 317, 16, 3, COL_HEADER_BG);
+  M5.Lcd.setTextColor(COL_ACCENT_AMBER, COL_HEADER_BG);
+  M5.Lcd.drawString("MAINT", 6, 121);
+
+  // Dividers
+  M5.Lcd.drawFastVLine(160, 0, 120, COL_DIVIDER);
+  M5.Lcd.drawFastHLine(0, 120, 320, COL_DIVIDER);
+  M5.Lcd.drawFastVLine(160, 139, 101, COL_DIVIDER);
+
+  // Static ENV icons
+  drawThermometer(4, 24, COL_ACCENT_CYAN);
+  drawDrop(4, 54, COL_ACCENT_CYAN);
+
+  // Button hints (MAINTENANCE)
+  M5.Lcd.setTextFont(1);
+  M5.Lcd.setTextSize(1);
+  M5.Lcd.setTextColor(COL_TEXT_MUTED, COL_BG);
+  M5.Lcd.setTextDatum(TC_DATUM);
+  M5.Lcd.drawString("[B] Reset", 80, 224);
+  M5.Lcd.drawString("[C] Reset", 240, 224);
+  M5.Lcd.setTextDatum(TL_DATUM);
+}
+
+void drawEnvPanel() {
   if (!sensorOk) {
-    M5.Lcd.setTextColor(RED, BLACK);
+    M5.Lcd.setTextFont(1);
     M5.Lcd.setTextSize(1);
-    M5.Lcd.setCursor(4, 10);
-    M5.Lcd.println("ENV Sensor");
-    M5.Lcd.setCursor(4, 22);
-    M5.Lcd.println("Init Failed!");
+    M5.Lcd.setTextColor(COL_CRIT_RED, COL_BG);
+    M5.Lcd.setTextPadding(140);
+    M5.Lcd.drawString("Sensor Failed!", 18, 30);
+    M5.Lcd.setTextPadding(0);
     return;
   }
 
-  M5.Lcd.setTextColor(WHITE, BLACK);
+  char buf[32];
+
+  // Temperature value (Font 4 = 26px)
+  M5.Lcd.setTextFont(4);
   M5.Lcd.setTextSize(1);
+  M5.Lcd.setTextColor(COL_TEXT_PRIMARY, COL_BG);
+  M5.Lcd.setTextPadding(80);
+  snprintf(buf, sizeof(buf), "%.1f", temperature);
+  int tw = M5.Lcd.drawString(buf, 16, 20);
+  // Degree circle + C
+  M5.Lcd.fillCircle(tw + 19, 23, 2, COL_TEXT_SECONDARY);
+  M5.Lcd.setTextFont(2);
+  M5.Lcd.setTextColor(COL_TEXT_SECONDARY, COL_BG);
+  M5.Lcd.setTextPadding(0);
+  M5.Lcd.drawString("C", tw + 24, 22);
 
-  M5.Lcd.setCursor(4, 4);
-  M5.Lcd.println("ENV");
+  // Humidity value
+  M5.Lcd.setTextFont(4);
+  M5.Lcd.setTextColor(COL_TEXT_PRIMARY, COL_BG);
+  M5.Lcd.setTextPadding(80);
+  snprintf(buf, sizeof(buf), "%.1f", humidity);
+  int hw = M5.Lcd.drawString(buf, 16, 50);
+  M5.Lcd.setTextFont(2);
+  M5.Lcd.setTextColor(COL_TEXT_SECONDARY, COL_BG);
+  M5.Lcd.setTextPadding(0);
+  M5.Lcd.drawString("%", hw + 18, 52);
 
-  M5.Lcd.setTextSize(2);
-
-  M5.Lcd.setCursor(4, 20);
-  M5.Lcd.printf("%.1f C", temperature);
-
-  M5.Lcd.setCursor(4, 46);
-  M5.Lcd.printf("%.1f %%", humidity);
-
-  M5.Lcd.setCursor(4, 72);
-  M5.Lcd.printf("%.0f %s", pressure_hpa,
-                trendSymbol(pressureTrend.direction()));
-
+  // Pressure (Font 2 = 16px)
+  M5.Lcd.setTextFont(2);
+  M5.Lcd.setTextColor(COL_TEXT_PRIMARY, COL_BG);
+  M5.Lcd.setTextPadding(55);
+  snprintf(buf, sizeof(buf), "%.0f", pressure_hpa);
+  int pw = M5.Lcd.drawString(buf, 4, 80);
+  // Trend arrow
+  drawTrendArrow(pw + 6, 80, pressureTrend.direction(), COL_TEXT_SECONDARY);
+  // hPa label
+  M5.Lcd.setTextFont(1);
   M5.Lcd.setTextSize(1);
-  M5.Lcd.setCursor(4, 92);
-  M5.Lcd.print("hPa");
+  M5.Lcd.setTextColor(COL_TEXT_MUTED, COL_BG);
+  M5.Lcd.setTextPadding(0);
+  M5.Lcd.drawString("hPa", pw + 18, 84);
 
-  // Weather line (wind + precipitation)
+  // Weather line
   if (weatherDataValid) {
-    M5.Lcd.setTextColor(CYAN, BLACK);
+    drawWeatherIcon(4, 98, weatherData.weather_code, COL_ACCENT_CYAN);
+    M5.Lcd.setTextFont(1);
     M5.Lcd.setTextSize(1);
-    M5.Lcd.setCursor(4, 104);
+    M5.Lcd.setTextColor(COL_ACCENT_CYAN, COL_BG);
+    M5.Lcd.setTextPadding(126);
     if (weatherData.precipitation_probability_3h >= 0) {
-      M5.Lcd.printf("%.0fkm/h %s R3h:%d%%",
-                    weatherData.wind_speed_kmh,
-                    WeatherClient::windDirectionToCompass(weatherData.wind_direction_deg),
-                    weatherData.precipitation_probability_3h);
+      snprintf(buf, sizeof(buf), "%.0fkm/h %s R3h:%d%%",
+               weatherData.wind_speed_kmh,
+               WeatherClient::windDirectionToCompass(weatherData.wind_direction_deg),
+               weatherData.precipitation_probability_3h);
     } else {
-      M5.Lcd.printf("%.0fkm/h %s",
-                    weatherData.wind_speed_kmh,
-                    WeatherClient::windDirectionToCompass(weatherData.wind_direction_deg));
+      snprintf(buf, sizeof(buf), "%.0fkm/h %s",
+               weatherData.wind_speed_kmh,
+               WeatherClient::windDirectionToCompass(weatherData.wind_direction_deg));
     }
+    M5.Lcd.drawString(buf, 26, 102);
   }
+
+  M5.Lcd.setTextPadding(0);
 }
 
 void drawInfoPanel() {
-  // Top-right quadrant: (160,0)-(319,119)
-  M5.Lcd.fillRect(160, 0, 160, 120, BLACK);
-  M5.Lcd.drawRect(160, 0, 160, 120, WHITE);
+  char buf[32];
+  struct tm timeinfo;
+  bool hasTime = ntpSynced && getLocalTime(&timeinfo, 100);
 
-  M5.Lcd.setTextColor(WHITE, BLACK);
+  // --- Header area: WiFi icon + time (small) ---
+  M5.Lcd.fillRect(258, 1, 58, 15, COL_HEADER_BG);
+
+  // WiFi icon in header bar
+  uint16_t wifiColor = (WiFi.status() == WL_CONNECTED)
+                            ? COL_ACCENT_GREEN : COL_ACCENT_RED;
+  int wcx = 268, wcy = 13;
+  M5.Lcd.drawCircleHelper(wcx, wcy, 10, 0x1 | 0x8, wifiColor);
+  M5.Lcd.drawCircleHelper(wcx, wcy, 7, 0x1 | 0x8, wifiColor);
+  M5.Lcd.drawCircleHelper(wcx, wcy, 4, 0x1 | 0x8, wifiColor);
+  M5.Lcd.fillCircle(wcx, wcy, 1, wifiColor);
+
+  // Time (small, right edge of header)
+  M5.Lcd.setTextFont(1);
   M5.Lcd.setTextSize(1);
-  M5.Lcd.setCursor(164, 4);
-  M5.Lcd.println("INFO");
-
-  if (ntpSynced) {
-    struct tm timeinfo;
-    if (getLocalTime(&timeinfo, 100)) {
-      M5.Lcd.setTextSize(2);
-      M5.Lcd.setCursor(164, 20);
-      M5.Lcd.printf("%02d:%02d", timeinfo.tm_hour, timeinfo.tm_min);
-
-      M5.Lcd.setCursor(164, 46);
-      M5.Lcd.printf("%04d/%02d/%02d", timeinfo.tm_year + 1900,
-                     timeinfo.tm_mon + 1, timeinfo.tm_mday);
-    }
+  M5.Lcd.setTextDatum(TR_DATUM);
+  if (hasTime) {
+    M5.Lcd.setTextColor(COL_TEXT_SECONDARY, COL_HEADER_BG);
+    snprintf(buf, sizeof(buf), "%02d:%02d", timeinfo.tm_hour, timeinfo.tm_min);
   } else {
-    M5.Lcd.setTextSize(2);
-    M5.Lcd.setCursor(164, 20);
-    M5.Lcd.print("--:--");
-    M5.Lcd.setCursor(164, 46);
-    M5.Lcd.print("----/--/--");
+    M5.Lcd.setTextColor(COL_TEXT_MUTED, COL_HEADER_BG);
+    snprintf(buf, sizeof(buf), "--:--");
   }
+  M5.Lcd.drawString(buf, 314, 4);
+  M5.Lcd.setTextDatum(TL_DATUM);
 
+  // --- Content area ---
+
+  // Date
+  M5.Lcd.setTextFont(2);
+  M5.Lcd.setTextPadding(100);
+  if (hasTime) {
+    M5.Lcd.setTextColor(COL_TEXT_SECONDARY, COL_BG);
+    snprintf(buf, sizeof(buf), "%04d/%02d/%02d",
+             timeinfo.tm_year + 1900, timeinfo.tm_mon + 1, timeinfo.tm_mday);
+  } else {
+    M5.Lcd.setTextColor(COL_TEXT_MUTED, COL_BG);
+    snprintf(buf, sizeof(buf), "----/--/--");
+  }
+  M5.Lcd.drawString(buf, 164, 22);
+
+  // Strava total distance (prominent)
+  drawBicycle(164, 50, COL_ACCENT_AMBER);
+  M5.Lcd.setTextFont(4);
   M5.Lcd.setTextSize(1);
-  M5.Lcd.setCursor(164, 72);
-  if (WiFi.status() == WL_CONNECTED) {
-    M5.Lcd.setTextColor(GREEN, BLACK);
-    M5.Lcd.printf("WiFi: %s", WIFI_SSID);
-  } else {
-    M5.Lcd.setTextColor(RED, BLACK);
-    M5.Lcd.print("WiFi: Disconnected");
-  }
-
-  // Strava total distance
-  M5.Lcd.setCursor(164, 86);
+  M5.Lcd.setTextPadding(110);
   if (stravaDataValid) {
-    M5.Lcd.setTextColor(YELLOW, BLACK);
-    M5.Lcd.setTextSize(2);
-    M5.Lcd.setCursor(164, 86);
-    M5.Lcd.printf("%.0f km", stravaStats.all_ride_totals_km);
+    M5.Lcd.setTextColor(COL_ACCENT_AMBER, COL_BG);
+    snprintf(buf, sizeof(buf), "%.0f km", stravaStats.all_ride_totals_km);
   } else {
-    M5.Lcd.setTextColor(DARKGREY, BLACK);
-    M5.Lcd.print("--- km");
+    M5.Lcd.setTextColor(COL_TEXT_MUTED, COL_BG);
+    snprintf(buf, sizeof(buf), "--- km");
   }
+  M5.Lcd.drawString(buf, 186, 48);
 
-  // Uptime (resets to 0 on reboot — useful for detecting crashes)
+  // Uptime (right-aligned, bottom)
   unsigned long uptimeSec = millis() / 1000;
-  M5.Lcd.setTextColor(DARKGREY, BLACK);
+  M5.Lcd.setTextFont(1);
   M5.Lcd.setTextSize(1);
-  M5.Lcd.setCursor(164, 108);
-  M5.Lcd.printf("Up: %lum%lus", uptimeSec / 60, uptimeSec % 60);
+  M5.Lcd.setTextColor(COL_TEXT_MUTED, COL_BG);
+  M5.Lcd.setTextDatum(TR_DATUM);
+  M5.Lcd.setTextPadding(80);
+  snprintf(buf, sizeof(buf), "Up: %lum%lus", uptimeSec / 60, uptimeSec % 60);
+  M5.Lcd.drawString(buf, 316, 106);
+  M5.Lcd.setTextDatum(TL_DATUM);
+
+  M5.Lcd.setTextPadding(0);
 }
 
 static uint16_t severityColor(Severity s) {
   switch (s) {
-    case Severity::NORMAL:   return WHITE;
-    case Severity::WARNING:  return YELLOW;
-    case Severity::CRITICAL: return RED;
-    default:                 return WHITE;
+    case Severity::NORMAL:   return COL_TEXT_PRIMARY;
+    case Severity::WARNING:  return COL_WARN_YELLOW;
+    case Severity::CRITICAL: return COL_CRIT_RED;
+    default:                 return COL_TEXT_PRIMARY;
   }
 }
 
 void drawMaintenancePanel() {
-  // Bottom half: (0,120)-(319,239)
-  M5.Lcd.fillRect(0, 120, 320, 120, BLACK);
-  M5.Lcd.drawRect(0, 120, 320, 120, WHITE);
-
   uint64_t now = currentCumulativeMs();
   time_t currentEpoch = 0;
   if (ntpSynced) {
     time(&currentEpoch);
   }
 
-  M5.Lcd.setTextColor(CYAN, BLACK);
-  M5.Lcd.setTextSize(1);
-  M5.Lcd.setCursor(4, 124);
-  M5.Lcd.print("MAINTENANCE");
-
-  // Tire Pressure - left side
+  // --- Tire Pressure (left half) ---
   uint64_t tireElapsedMs = 0;
   if (now > tirePressure.resetUptimeMs()) {
     tireElapsedMs = now - tirePressure.resetUptimeMs();
@@ -604,39 +793,35 @@ void drawMaintenancePanel() {
   MaintenanceDisplayResult tireResult =
       MaintenanceDisplay::format(tirePressure.resetEpoch(), currentEpoch,
                                  tireElapsedMs);
+  uint16_t tireColor = severityColor(tireResult.severity);
 
-  M5.Lcd.setTextColor(WHITE, BLACK);
+  // Tire icon
+  drawTireIcon(72, 144, tireColor);
+
+  // Tire value (centered in left half)
+  M5.Lcd.setTextFont(4);
   M5.Lcd.setTextSize(1);
-  M5.Lcd.setCursor(16, 144);
-  M5.Lcd.print("Tire Pressure");
+  M5.Lcd.setTextColor(tireColor, COL_BG);
+  M5.Lcd.setTextDatum(TC_DATUM);
+  M5.Lcd.setTextPadding(150);
+  M5.Lcd.drawString(tireResult.text, 80, 168);
 
-  M5.Lcd.setTextColor(severityColor(tireResult.severity), BLACK);
-  M5.Lcd.setTextSize(2);
-  M5.Lcd.setCursor(24, 162);
-  M5.Lcd.print(tireResult.text);
-
-  M5.Lcd.setTextSize(1);
-  M5.Lcd.setCursor(16, 192);
-  M5.Lcd.setTextColor(GREEN, BLACK);
-  M5.Lcd.print("[B] Reset");
-
-  // Chain Lube - right side (always distance-based)
-  M5.Lcd.setTextColor(WHITE, BLACK);
-  M5.Lcd.setTextSize(1);
-  M5.Lcd.setCursor(184, 144);
-  M5.Lcd.print("Chain Lube");
-
+  // --- Chain Lube (right half) ---
   MaintenanceDisplayResult chainResult =
       MaintenanceDisplay::formatDistance(chainLubeDistanceKm);
-  M5.Lcd.setTextColor(severityColor(chainResult.severity), BLACK);
-  M5.Lcd.setTextSize(2);
-  M5.Lcd.setCursor(192, 162);
-  M5.Lcd.print(chainResult.text);
+  uint16_t chainColor = severityColor(chainResult.severity);
 
-  M5.Lcd.setTextSize(1);
-  M5.Lcd.setCursor(184, 192);
-  M5.Lcd.setTextColor(GREEN, BLACK);
-  M5.Lcd.print("[C] Reset");
+  // Chain icon
+  drawChainIcon(229, 148, chainColor);
+
+  // Chain value (centered in right half)
+  M5.Lcd.setTextFont(4);
+  M5.Lcd.setTextColor(chainColor, COL_BG);
+  M5.Lcd.setTextPadding(150);
+  M5.Lcd.drawString(chainResult.text, 240, 168);
+
+  M5.Lcd.setTextDatum(TL_DATUM);
+  M5.Lcd.setTextPadding(0);
 }
 
 void saveToNvs() {
@@ -661,14 +846,16 @@ void setup() {
 
   Serial.printf("RideReady! [%s]\n", GIT_HASH);
 
-  M5.Lcd.fillScreen(BLACK);
-  M5.Lcd.setTextColor(WHITE, BLACK);
-  M5.Lcd.setTextSize(2);
-  M5.Lcd.setCursor(30, 100);
-  M5.Lcd.println("RideReady!");
+  M5.Lcd.fillScreen(COL_BG);
+  M5.Lcd.setTextFont(4);
   M5.Lcd.setTextSize(1);
-  M5.Lcd.setCursor(30, 125);
-  M5.Lcd.printf("[%s]", GIT_HASH);
+  M5.Lcd.setTextColor(COL_TEXT_PRIMARY, COL_BG);
+  M5.Lcd.setTextDatum(MC_DATUM);
+  M5.Lcd.drawString("RideReady!", 160, 110);
+  M5.Lcd.setTextFont(1);
+  M5.Lcd.setTextColor(COL_TEXT_MUTED, COL_BG);
+  M5.Lcd.drawString(GIT_HASH, 160, 140);
+  M5.Lcd.setTextDatum(TL_DATUM);
 
   // NVS: restore cumulative uptime and maintenance reset times
   preferences.begin("rideready", false);
@@ -745,6 +932,7 @@ void setup() {
     weatherSyncNeeded = false;
   }
 
+  drawStaticLayout();
   drawEnvPanel();
   drawInfoPanel();
   drawMaintenancePanel();
