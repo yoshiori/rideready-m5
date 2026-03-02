@@ -640,6 +640,8 @@ void setup() {
   M5.begin(true, true, true, false);
   M5.Power.begin();
 
+  Serial.printf("RideReady! [%s]\n", GIT_HASH);
+
   M5.Lcd.fillScreen(BLACK);
   M5.Lcd.setTextColor(WHITE, BLACK);
   M5.Lcd.setTextSize(2);
