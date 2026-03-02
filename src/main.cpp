@@ -28,6 +28,7 @@ static const unsigned long WIFI_CONNECT_TIMEOUT_MS = 10000;
 static const unsigned long STRAVA_SYNC_INTERVAL_MS = 600000;    // 10 min
 static const unsigned long STRAVA_TOKEN_EXPIRY_BUFFER_SEC = 300;  // 5 min
 static const unsigned long WEATHER_SYNC_INTERVAL_MS = 1800000;  // 30 min
+static const unsigned long MANUAL_SYNC_COOLDOWN_MS = 30000;     // 30 sec
 static const long GMT_OFFSET_SEC = 9 * 3600;                   // JST
 
 SHT3X sht3x;
@@ -72,6 +73,7 @@ bool chainLubeDistanceValid = false;
 WeatherData weatherData = {};
 bool weatherDataValid = false;
 unsigned long lastWeatherSyncMs = 0;
+unsigned long lastManualSyncMs = 0;
 bool weatherSyncNeeded = true;
 
 static uint64_t currentCumulativeMs() {
@@ -729,19 +731,20 @@ void loop() {
 
   unsigned long now = millis();
 
-  // A button: manual fetch (weather + Strava)
-  if (M5.BtnA.wasReleased()) {
+  // A button: manual fetch (weather + Strava) with cooldown
+  if (M5.BtnA.wasReleased() && (now - lastManualSyncMs) >= MANUAL_SYNC_COOLDOWN_MS) {
+    lastManualSyncMs = now;
+    Serial.println("Manual sync triggered (A button)");
     fetchWeather();
     syncStrava();
-    lastWeatherSyncMs = now;
-    lastStravaSyncMs = now;
+    lastWeatherSyncMs = millis();
+    lastStravaSyncMs = millis();
     weatherSyncNeeded = false;
     stravaSyncNeeded = false;
     drawEnvPanel();
     drawInfoPanel();
     drawMaintenancePanel();
     M5.update();  // Flush stale button state after long network ops
-    Serial.println("Manual sync triggered (A button)");
   }
 
   // B button: reset Tire Pressure timer
