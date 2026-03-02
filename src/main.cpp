@@ -30,20 +30,21 @@ static const unsigned long STRAVA_TOKEN_EXPIRY_BUFFER_SEC = 300;  // 5 min
 static const unsigned long WEATHER_SYNC_INTERVAL_MS = 1800000;  // 30 min
 static const long GMT_OFFSET_SEC = 9 * 3600;                   // JST
 
-// --- Color Palette ---
-static const uint16_t COL_BG             = 0x0000;
-static const uint16_t COL_HEADER_BG      = 0x1926;
-static const uint16_t COL_DIVIDER        = 0x2945;
-static const uint16_t COL_TEXT_PRIMARY    = 0xE73C;
-static const uint16_t COL_TEXT_SECONDARY  = 0x8C71;
-static const uint16_t COL_TEXT_MUTED      = 0x52AA;
-static const uint16_t COL_ACCENT_CYAN    = 0x2E9F;
-static const uint16_t COL_ACCENT_BLUE    = 0x3B7F;
-static const uint16_t COL_ACCENT_GREEN   = 0x2DC9;
-static const uint16_t COL_ACCENT_AMBER   = 0xFCA0;
-static const uint16_t COL_ACCENT_RED     = 0xF8A2;
-static const uint16_t COL_WARN_YELLOW    = 0xFE60;
-static const uint16_t COL_CRIT_RED       = 0xF800;
+// --- Color Palette (Dracula) ---
+// https://draculatheme.com/contribute
+static const uint16_t COL_BG             = 0x2946;  // #282a36 Background
+static const uint16_t COL_HEADER_BG      = 0x422B;  // #44475a Current Line
+static const uint16_t COL_DIVIDER        = 0x422B;  // #44475a Current Line
+static const uint16_t COL_TEXT_PRIMARY    = 0xFFDE;  // #f8f8f2 Foreground
+static const uint16_t COL_TEXT_SECONDARY  = 0x6394;  // #6272a4 Comment
+static const uint16_t COL_TEXT_MUTED      = 0x6394;  // #6272a4 Comment
+static const uint16_t COL_ACCENT_CYAN    = 0x8F5F;  // #8be9fd Cyan
+static const uint16_t COL_ACCENT_BLUE    = 0xBC9F;  // #bd93f9 Purple
+static const uint16_t COL_ACCENT_GREEN   = 0x57CF;  // #50fa7b Green
+static const uint16_t COL_ACCENT_AMBER   = 0xFDCD;  // #ffb86c Orange
+static const uint16_t COL_ACCENT_RED     = 0xFAAA;  // #ff5555 Red
+static const uint16_t COL_WARN_YELLOW    = 0xF7F1;  // #f1fa8c Yellow
+static const uint16_t COL_CRIT_RED       = 0xFAAA;  // #ff5555 Red
 
 SHT3X sht3x;
 QMP6988 qmp6988;
@@ -184,9 +185,9 @@ void drawWifiIcon(int x, int y, uint16_t color) {
   int cx = x + 8;
   int cy = y + 11;
   M5.Lcd.fillRect(x, y, 16, 13, COL_BG);
-  M5.Lcd.drawCircleHelper(cx, cy, 10, 0x1 | 0x8, color);
-  M5.Lcd.drawCircleHelper(cx, cy, 7, 0x1 | 0x8, color);
-  M5.Lcd.drawCircleHelper(cx, cy, 4, 0x1 | 0x8, color);
+  M5.Lcd.drawCircleHelper(cx, cy, 10, 0x1 | 0x2, color);
+  M5.Lcd.drawCircleHelper(cx, cy, 7, 0x1 | 0x2, color);
+  M5.Lcd.drawCircleHelper(cx, cy, 4, 0x1 | 0x2, color);
   M5.Lcd.fillCircle(cx, cy, 1, color);
 }
 
@@ -707,9 +708,9 @@ void drawInfoPanel() {
   uint16_t wifiColor = (WiFi.status() == WL_CONNECTED)
                             ? COL_ACCENT_GREEN : COL_ACCENT_RED;
   int wcx = 268, wcy = 13;
-  M5.Lcd.drawCircleHelper(wcx, wcy, 10, 0x1 | 0x8, wifiColor);
-  M5.Lcd.drawCircleHelper(wcx, wcy, 7, 0x1 | 0x8, wifiColor);
-  M5.Lcd.drawCircleHelper(wcx, wcy, 4, 0x1 | 0x8, wifiColor);
+  M5.Lcd.drawCircleHelper(wcx, wcy, 10, 0x1 | 0x2, wifiColor);
+  M5.Lcd.drawCircleHelper(wcx, wcy, 7, 0x1 | 0x2, wifiColor);
+  M5.Lcd.drawCircleHelper(wcx, wcy, 4, 0x1 | 0x2, wifiColor);
   M5.Lcd.fillCircle(wcx, wcy, 1, wifiColor);
 
   // Time (small, right edge of header)
