@@ -11,6 +11,7 @@
 #include "maintenance_display.h"
 #include "maintenance_tracker.h"
 #include "pressure_trend.h"
+#include "rain_ride_detector.h"
 #include "strava_client.h"
 #include "strava_config.h"
 #include "weather_client.h"
@@ -76,7 +77,7 @@ char stravaAccessToken[256] = "";
 char stravaRefreshToken[256] = "";
 unsigned long stravaExpiresAt = 0;
 StravaStats stravaStats = {};
-StravaActivity stravaLatestActivity = {"", 0.0f, 0};
+StravaActivity stravaLatestActivity = {"", 0.0f, 0, "", "", 0.0f, 0.0f, false};
 bool stravaDataValid = false;
 
 // Weekly/Monthly stats
@@ -97,6 +98,9 @@ WeatherData weatherData = {};
 bool weatherDataValid = false;
 unsigned long lastWeatherSyncMs = 0;
 bool weatherSyncNeeded = true;
+
+// Rain ride detection
+bool rainRideFlag = false;
 
 static uint64_t currentCumulativeMs() {
   return cumulativeUptimeMs + (millis() - lastUptimeUpdateMs);
@@ -509,14 +513,22 @@ bool fetchChainLubeDistance(bool isRetry = false) {
 bool fetchWeeklyDistance() {
   time_t now;
   time(&now);
-  time_t weekAgo = now - 7 * 24 * 3600;
+  struct tm timeinfo;
+  localtime_r(&now, &timeinfo);
+  // Strava week starts on Monday (tm_wday: 0=Sun, 1=Mon, ..., 6=Sat)
+  int daysSinceMonday = (timeinfo.tm_wday + 6) % 7;
+  timeinfo.tm_mday -= daysSinceMonday;
+  timeinfo.tm_hour = 0;
+  timeinfo.tm_min = 0;
+  timeinfo.tm_sec = 0;
+  time_t weekStart = mktime(&timeinfo);
 
   WiFiClientSecure client;
   client.setInsecure();
 
   HTTPClient http;
   String url = "https://www.strava.com/api/v3/athlete/activities?after=" +
-               String(static_cast<unsigned long>(weekAgo)) + "&per_page=200";
+               String(static_cast<unsigned long>(weekStart)) + "&per_page=200";
 
   if (!http.begin(client, url)) {
     return false;
@@ -588,6 +600,53 @@ bool fetchMonthlyStats() {
   return false;
 }
 
+bool checkRainRide(const StravaActivity& activity) {
+  if (!RainRideDetector::isOutdoorRide(activity.type)) return false;
+  if (strlen(activity.start_date) == 0) return false;
+
+  float lat, lng;
+  if (activity.has_location) {
+    lat = activity.start_lat;
+    lng = activity.start_lng;
+  } else {
+    // Fall back to configured weather location
+    lat = atof(WEATHER_LAT);
+    lng = atof(WEATHER_LON);
+  }
+
+  WiFiClientSecure client;
+  client.setInsecure();
+
+  HTTPClient http;
+  char url[256];
+  snprintf(url, sizeof(url),
+           "https://archive-api.open-meteo.com/v1/archive"
+           "?latitude=%.4f&longitude=%.4f&start_date=%s&end_date=%s"
+           "&hourly=precipitation&timezone=Asia%%2FTokyo",
+           lat, lng, activity.start_date, activity.start_date);
+
+  if (!http.begin(client, url)) {
+    Serial.println("Rain check: Failed to begin HTTP");
+    return false;
+  }
+
+  int httpCode = http.GET();
+  Serial.printf("Rain check: HTTP %d\n", httpCode);
+
+  if (httpCode == 200) {
+    String response = http.getString();
+    bool rained = false;
+    if (WeatherClient::parseHistoricalPrecipitation(response.c_str(), rained)) {
+      Serial.printf("Rain check: rained=%s\n", rained ? "YES" : "NO");
+      http.end();
+      return rained;
+    }
+  }
+
+  http.end();
+  return false;
+}
+
 void syncStrava() {
   if (WiFi.status() != WL_CONNECTED) return;
 
@@ -609,6 +668,15 @@ void syncStrava() {
   bool chainDistOk = fetchChainLubeDistance();
   bool weeklyOk = fetchWeeklyDistance();
   bool monthlyOk = fetchMonthlyStats();
+
+  // Check rain ride if latest activity fetched and chain has a reset epoch
+  if (activityOk && chainLube.resetEpoch() > 0) {
+    if (checkRainRide(stravaLatestActivity)) {
+      rainRideFlag = true;
+      preferences.putBool("rain_ride", true);
+      Serial.println("Rain ride detected — chain lube severity overridden");
+    }
+  }
 
   if (statsOk) {
     weeklyAverageKm = stravaStats.recent_ride_weekly_avg_km;
@@ -1006,7 +1074,9 @@ void drawMaintenancePanel() {
   // --- Chain Lube (right half) ---
   MaintenanceDisplayResult chainResult =
       MaintenanceDisplay::formatDistance(chainLubeDistanceKm);
-  uint16_t chainColor = severityColor(chainResult.severity);
+  Severity chainSeverity = RainRideDetector::applySeverityOverride(
+      chainResult.severity, rainRideFlag);
+  uint16_t chainColor = severityColor(chainSeverity);
 
   // Chain icon (72x36, centered in right half)
   drawChainIcon(204, 146, chainColor);
@@ -1035,6 +1105,7 @@ void saveToNvs() {
   preferences.putULong64("chain_epoch",
                           static_cast<uint64_t>(chainLube.resetEpoch()));
   preferences.putFloat("chain_dist", chainLubeDistanceKm);
+  preferences.putBool("rain_ride", rainRideFlag);
 }
 
 void setup() {
@@ -1079,6 +1150,9 @@ void setup() {
   if (chainLubeDistanceKm > 0.0f) {
     chainLubeDistanceValid = true;
   }
+
+  // Restore rain ride flag
+  rainRideFlag = preferences.getBool("rain_ride", false);
 
   // Restore weekly/monthly stats cache
   weeklyDistanceKm = preferences.getFloat("weekly_dist", 0.0f);
@@ -1166,11 +1240,13 @@ void loop() {
     updateResetEpoch(chainLube);
     chainLubeDistanceKm = 0.0f;
     chainLubeDistanceValid = false;
+    rainRideFlag = false;
     preferences.putFloat("chain_dist", 0.0f);
+    preferences.putBool("rain_ride", false);
     saveToNvs();
     stravaSyncNeeded = true;
     drawMaintenancePanel();
-    Serial.println("Chain Lube reset (distance cleared)");
+    Serial.println("Chain Lube reset (distance + rain flag cleared)");
   }
 
   // Wi-Fi reconnection (every 30s)

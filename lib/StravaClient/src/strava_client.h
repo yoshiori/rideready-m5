@@ -8,6 +8,11 @@ struct StravaActivity {
   char name[48];
   float distance_km;
   uint32_t moving_time_sec;
+  char type[24];        // "Ride", "VirtualRide", "Run" etc.
+  char start_date[11];  // "YYYY-MM-DD" (10 chars + null)
+  float start_lat;
+  float start_lng;
+  bool has_location;    // true if start_latlng was non-null/non-empty
 };
 
 struct StravaActivitiesStats {

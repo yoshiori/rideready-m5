@@ -11,7 +11,9 @@ struct WeatherData {
 class WeatherClient {
 public:
   static bool parseWeather(const char* json, WeatherData& out);
+  static bool parseHistoricalPrecipitation(const char* json, bool& rained);
   static const char* windDirectionToCompass(int degrees);
+  static constexpr float RAIN_THRESHOLD_MM = 0.5f;
 };
 
 #endif

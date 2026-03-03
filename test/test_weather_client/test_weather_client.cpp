@@ -112,6 +112,94 @@ void test_compass_boundary(void) {
   TEST_ASSERT_EQUAL_STRING("N", WeatherClient::windDirectionToCompass(338));
 }
 
+// --- parseHistoricalPrecipitation tests ---
+
+void test_historical_rain_above_threshold(void) {
+  const char* json = R"({
+    "hourly": {
+      "time": ["2026-03-01T08:00", "2026-03-01T09:00", "2026-03-01T10:00"],
+      "precipitation": [0.0, 1.5, 0.2]
+    }
+  })";
+
+  bool rained = false;
+  bool ok = WeatherClient::parseHistoricalPrecipitation(json, rained);
+  TEST_ASSERT_TRUE(ok);
+  TEST_ASSERT_TRUE(rained);
+}
+
+void test_historical_no_rain(void) {
+  const char* json = R"({
+    "hourly": {
+      "time": ["2026-03-01T08:00", "2026-03-01T09:00"],
+      "precipitation": [0.0, 0.0]
+    }
+  })";
+
+  bool rained = true;
+  bool ok = WeatherClient::parseHistoricalPrecipitation(json, rained);
+  TEST_ASSERT_TRUE(ok);
+  TEST_ASSERT_FALSE(rained);
+}
+
+void test_historical_below_threshold(void) {
+  const char* json = R"({
+    "hourly": {
+      "time": ["2026-03-01T08:00"],
+      "precipitation": [0.4]
+    }
+  })";
+
+  bool rained = true;
+  bool ok = WeatherClient::parseHistoricalPrecipitation(json, rained);
+  TEST_ASSERT_TRUE(ok);
+  TEST_ASSERT_FALSE(rained);
+}
+
+void test_historical_exactly_threshold(void) {
+  const char* json = R"({
+    "hourly": {
+      "time": ["2026-03-01T08:00"],
+      "precipitation": [0.5]
+    }
+  })";
+
+  bool rained = false;
+  bool ok = WeatherClient::parseHistoricalPrecipitation(json, rained);
+  TEST_ASSERT_TRUE(ok);
+  TEST_ASSERT_TRUE(rained);
+}
+
+void test_historical_no_hourly(void) {
+  const char* json = R"({"daily": {}})";
+
+  bool rained = true;
+  bool ok = WeatherClient::parseHistoricalPrecipitation(json, rained);
+  TEST_ASSERT_FALSE(ok);
+}
+
+void test_historical_invalid_json(void) {
+  const char* json = "not valid json";
+
+  bool rained = true;
+  bool ok = WeatherClient::parseHistoricalPrecipitation(json, rained);
+  TEST_ASSERT_FALSE(ok);
+}
+
+void test_historical_empty_precipitation(void) {
+  const char* json = R"({
+    "hourly": {
+      "time": [],
+      "precipitation": []
+    }
+  })";
+
+  bool rained = true;
+  bool ok = WeatherClient::parseHistoricalPrecipitation(json, rained);
+  TEST_ASSERT_TRUE(ok);
+  TEST_ASSERT_FALSE(rained);
+}
+
 int main(int argc, char** argv) {
   UNITY_BEGIN();
   RUN_TEST(test_parse_weather_full_response);
@@ -123,6 +211,13 @@ int main(int argc, char** argv) {
   RUN_TEST(test_compass_cardinal);
   RUN_TEST(test_compass_intercardinal);
   RUN_TEST(test_compass_boundary);
+  RUN_TEST(test_historical_rain_above_threshold);
+  RUN_TEST(test_historical_no_rain);
+  RUN_TEST(test_historical_below_threshold);
+  RUN_TEST(test_historical_exactly_threshold);
+  RUN_TEST(test_historical_no_hourly);
+  RUN_TEST(test_historical_invalid_json);
+  RUN_TEST(test_historical_empty_precipitation);
   UNITY_END();
   return 0;
 }

@@ -209,7 +209,8 @@ void test_parse_activity_success(void) {
     "distance": 42195.0,
     "moving_time": 5400,
     "start_date_local": "2026-03-01T08:00:00Z",
-    "type": "Ride"
+    "type": "Ride",
+    "start_latlng": [35.6812, 139.7671]
   }])";
 
   StravaActivity activity;
@@ -218,6 +219,11 @@ void test_parse_activity_success(void) {
   TEST_ASSERT_EQUAL_STRING("Morning Ride", activity.name);
   TEST_ASSERT_FLOAT_WITHIN(0.1f, 42.2f, activity.distance_km);
   TEST_ASSERT_EQUAL_UINT32(5400, activity.moving_time_sec);
+  TEST_ASSERT_EQUAL_STRING("Ride", activity.type);
+  TEST_ASSERT_EQUAL_STRING("2026-03-01", activity.start_date);
+  TEST_ASSERT_TRUE(activity.has_location);
+  TEST_ASSERT_FLOAT_WITHIN(0.001f, 35.6812f, activity.start_lat);
+  TEST_ASSERT_FLOAT_WITHIN(0.001f, 139.7671f, activity.start_lng);
 }
 
 void test_parse_activity_empty_array(void) {
@@ -244,6 +250,55 @@ void test_parse_activity_long_name_truncated(void) {
   TEST_ASSERT_TRUE(strlen(activity.name) < sizeof(activity.name));
 }
 
+void test_parse_activity_null_latlng(void) {
+  const char* json = R"([{
+    "name": "Indoor Ride",
+    "distance": 20000.0,
+    "moving_time": 3600,
+    "start_date_local": "2026-03-01T08:00:00Z",
+    "type": "VirtualRide",
+    "start_latlng": null
+  }])";
+
+  StravaActivity activity;
+  bool ok = StravaClient::parseActivity(json, activity);
+  TEST_ASSERT_TRUE(ok);
+  TEST_ASSERT_FALSE(activity.has_location);
+  TEST_ASSERT_EQUAL_STRING("VirtualRide", activity.type);
+  TEST_ASSERT_EQUAL_STRING("2026-03-01", activity.start_date);
+}
+
+void test_parse_activity_empty_latlng(void) {
+  const char* json = R"([{
+    "name": "Trainer Ride",
+    "distance": 15000.0,
+    "moving_time": 2700,
+    "start_date_local": "2026-03-02T18:00:00Z",
+    "type": "Ride",
+    "start_latlng": []
+  }])";
+
+  StravaActivity activity;
+  bool ok = StravaClient::parseActivity(json, activity);
+  TEST_ASSERT_TRUE(ok);
+  TEST_ASSERT_FALSE(activity.has_location);
+}
+
+void test_parse_activity_missing_type(void) {
+  const char* json = R"([{
+    "name": "Unknown Activity",
+    "distance": 5000.0,
+    "moving_time": 600
+  }])";
+
+  StravaActivity activity;
+  bool ok = StravaClient::parseActivity(json, activity);
+  TEST_ASSERT_TRUE(ok);
+  TEST_ASSERT_EQUAL_STRING("", activity.type);
+  TEST_ASSERT_EQUAL_STRING("", activity.start_date);
+  TEST_ASSERT_FALSE(activity.has_location);
+}
+
 int main(int argc, char** argv) {
   UNITY_BEGIN();
   RUN_TEST(test_parse_token_response_success);
@@ -263,6 +318,9 @@ int main(int argc, char** argv) {
   RUN_TEST(test_parse_activity_success);
   RUN_TEST(test_parse_activity_empty_array);
   RUN_TEST(test_parse_activity_long_name_truncated);
+  RUN_TEST(test_parse_activity_null_latlng);
+  RUN_TEST(test_parse_activity_empty_latlng);
+  RUN_TEST(test_parse_activity_missing_type);
   UNITY_END();
   return 0;
 }

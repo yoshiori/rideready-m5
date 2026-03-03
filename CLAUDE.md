@@ -48,6 +48,16 @@
   - ≥500 km → RED warning color
   - Shows "0 km" until Strava sync completes after reset
 
+## Rain Ride Detection
+- After each Strava sync, checks if the latest ride was in rain
+- Uses Open-Meteo Archive API (`archive-api.open-meteo.com/v1/archive`) with activity's date and location
+- If activity has `start_latlng`, uses that; otherwise falls back to `WEATHER_LAT`/`WEATHER_LON`
+- Rain threshold: ≥0.5mm precipitation in any hour of the ride day
+- Only checks outdoor ride types: Ride, EBikeRide, GravelRide, MountainBikeRide
+- If rain detected, forces chain lube severity to CRITICAL (RED) regardless of distance
+- Flag persists in NVS (`rain_ride`) until C button reset clears it
+- Dry rides do NOT clear the flag — only manual C button reset does
+
 ## Open-Meteo Weather API
 - `src/weather_config.h` contains latitude/longitude (`#define WEATHER_LAT` / `WEATHER_LON`)
 - `src/weather_config.h.example` is the template; `src/weather_config.h` is gitignored
@@ -86,6 +96,7 @@
 | `weekly_avg` | Float | Weekly average distance cache (km) |
 | `month_dist` | Float | Monthly distance cache (km) |
 | `month_elev` | Float | Monthly elevation cache (m) |
+| `rain_ride` | Bool | Rain ride flag (persists until chain reset) |
 
 ## Screen Layout (320x240)
 ```

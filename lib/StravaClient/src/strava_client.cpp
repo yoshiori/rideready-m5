@@ -108,5 +108,35 @@ bool StravaClient::parseActivity(const char* json, StravaActivity& out) {
   out.distance_km = activity["distance"].as<float>() / METERS_PER_KM;
   out.moving_time_sec = activity["moving_time"].as<uint32_t>();
 
+  // type
+  const char* type = activity["type"];
+  if (type) {
+    strncpy(out.type, type, sizeof(out.type) - 1);
+    out.type[sizeof(out.type) - 1] = '\0';
+  } else {
+    out.type[0] = '\0';
+  }
+
+  // start_date (first 10 chars of start_date_local)
+  const char* startDate = activity["start_date_local"];
+  if (startDate && strlen(startDate) >= 10) {
+    strncpy(out.start_date, startDate, 10);
+    out.start_date[10] = '\0';
+  } else {
+    out.start_date[0] = '\0';
+  }
+
+  // start_latlng: [lat, lng] array
+  JsonArray latlng = activity["start_latlng"];
+  if (!latlng.isNull() && latlng.size() >= 2) {
+    out.start_lat = latlng[0].as<float>();
+    out.start_lng = latlng[1].as<float>();
+    out.has_location = true;
+  } else {
+    out.start_lat = 0.0f;
+    out.start_lng = 0.0f;
+    out.has_location = false;
+  }
+
   return true;
 }

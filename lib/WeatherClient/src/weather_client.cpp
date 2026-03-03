@@ -25,6 +25,24 @@ bool WeatherClient::parseWeather(const char* json, WeatherData& out) {
   return true;
 }
 
+bool WeatherClient::parseHistoricalPrecipitation(const char* json, bool& rained) {
+  JsonDocument doc;
+  DeserializationError err = deserializeJson(doc, json);
+  if (err) return false;
+
+  JsonArray precip = doc["hourly"]["precipitation"];
+  if (precip.isNull()) return false;
+
+  rained = false;
+  for (size_t i = 0; i < precip.size(); i++) {
+    if (precip[i].as<float>() >= RAIN_THRESHOLD_MM) {
+      rained = true;
+      break;
+    }
+  }
+  return true;
+}
+
 const char* WeatherClient::windDirectionToCompass(int degrees) {
   // Normalize to 0-359
   degrees = ((degrees % 360) + 360) % 360;
