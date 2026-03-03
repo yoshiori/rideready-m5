@@ -44,6 +44,14 @@ bool StravaClient::parseStats(const char* json, StravaStats& out) {
     out.ytd_ride_totals_km = 0.0f;
   }
 
+  JsonObject recentRide = doc["recent_ride_totals"];
+  if (!recentRide.isNull()) {
+    out.recent_ride_weekly_avg_km =
+        recentRide["distance"].as<float>() / 4.0f / METERS_PER_KM;
+  } else {
+    out.recent_ride_weekly_avg_km = 0.0f;
+  }
+
   return true;
 }
 
@@ -59,6 +67,24 @@ bool StravaClient::parseActivitiesDistance(const char* json,
     totalMeters += activity["distance"].as<float>();
   }
   totalDistanceKm = totalMeters / METERS_PER_KM;
+  return true;
+}
+
+bool StravaClient::parseActivitiesStats(const char* json,
+                                         StravaActivitiesStats& out) {
+  JsonDocument doc;
+  DeserializationError err = deserializeJson(doc, json);
+  if (err) return false;
+
+  JsonArray arr = doc.as<JsonArray>();
+  float totalMeters = 0.0f;
+  float totalElevation = 0.0f;
+  for (JsonObject activity : arr) {
+    totalMeters += activity["distance"].as<float>();
+    totalElevation += activity["total_elevation_gain"].as<float>();
+  }
+  out.total_distance_km = totalMeters / METERS_PER_KM;
+  out.total_elevation_m = totalElevation;
   return true;
 }
 

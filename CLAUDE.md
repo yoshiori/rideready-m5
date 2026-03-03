@@ -82,6 +82,10 @@
 | `strava_rt` | String | Strava refresh token |
 | `strava_exp` | ULong64 | Strava token expires_at (Unix epoch) |
 | `chain_dist` | Float | Cached chain lube distance since reset (km) |
+| `weekly_dist` | Float | Weekly distance cache (km) |
+| `weekly_avg` | Float | Weekly average distance cache (km) |
+| `month_dist` | Float | Monthly distance cache (km) |
+| `month_elev` | Float | Monthly elevation cache (m) |
 
 ## Screen Layout (320x240)
 ```

@@ -76,14 +76,14 @@ char stravaAccessToken[256] = "";
 char stravaRefreshToken[256] = "";
 unsigned long stravaExpiresAt = 0;
 StravaStats stravaStats = {};
-StravaActivity stravaLatestActivity = {"Morning Ride", 25.3f, 3900};
+StravaActivity stravaLatestActivity = {"", 0.0f, 0};
 bool stravaDataValid = false;
 
-// Weekly/Monthly stats (dummy — API integration later)
-float weeklyDistanceKm = 80.0f;
-float weeklyAverageKm = 120.0f;
-float monthlyDistanceKm = 1200.0f;
-float monthlyElevationM = 8000.0f;
+// Weekly/Monthly stats
+float weeklyDistanceKm = 0.0f;
+float weeklyAverageKm = 0.0f;
+float monthlyDistanceKm = 0.0f;
+float monthlyElevationM = 0.0f;
 bool stravaSyncNeeded = true;
 unsigned long stravaBackoffUntilMs = 0;
 static const unsigned long STRAVA_BACKOFF_MS = 900000;  // 15 min after 429
@@ -506,6 +506,88 @@ bool fetchChainLubeDistance(bool isRetry = false) {
   return false;
 }
 
+bool fetchWeeklyDistance() {
+  time_t now;
+  time(&now);
+  time_t weekAgo = now - 7 * 24 * 3600;
+
+  WiFiClientSecure client;
+  client.setInsecure();
+
+  HTTPClient http;
+  String url = "https://www.strava.com/api/v3/athlete/activities?after=" +
+               String(static_cast<unsigned long>(weekAgo)) + "&per_page=200";
+
+  if (!http.begin(client, url)) {
+    return false;
+  }
+
+  http.addHeader("Authorization", "Bearer " + String(stravaAccessToken));
+
+  int httpCode = http.GET();
+  Serial.printf("Strava weekly: HTTP %d\n", httpCode);
+
+  if (httpCode == 200) {
+    String response = http.getString();
+    StravaActivitiesStats stats;
+    bool ok = StravaClient::parseActivitiesStats(response.c_str(), stats);
+    http.end();
+    if (ok) {
+      weeklyDistanceKm = stats.total_distance_km;
+      Serial.printf("Weekly distance: %.1f km\n", weeklyDistanceKm);
+    }
+    return ok;
+  }
+
+  http.end();
+  return false;
+}
+
+bool fetchMonthlyStats() {
+  time_t now;
+  time(&now);
+  struct tm timeinfo;
+  localtime_r(&now, &timeinfo);
+  timeinfo.tm_mday = 1;
+  timeinfo.tm_hour = 0;
+  timeinfo.tm_min = 0;
+  timeinfo.tm_sec = 0;
+  time_t monthStart = mktime(&timeinfo);
+
+  WiFiClientSecure client;
+  client.setInsecure();
+
+  HTTPClient http;
+  String url = "https://www.strava.com/api/v3/athlete/activities?after=" +
+               String(static_cast<unsigned long>(monthStart)) + "&per_page=200";
+
+  if (!http.begin(client, url)) {
+    return false;
+  }
+
+  http.addHeader("Authorization", "Bearer " + String(stravaAccessToken));
+
+  int httpCode = http.GET();
+  Serial.printf("Strava monthly: HTTP %d\n", httpCode);
+
+  if (httpCode == 200) {
+    String response = http.getString();
+    StravaActivitiesStats stats;
+    bool ok = StravaClient::parseActivitiesStats(response.c_str(), stats);
+    http.end();
+    if (ok) {
+      monthlyDistanceKm = stats.total_distance_km;
+      monthlyElevationM = stats.total_elevation_m;
+      Serial.printf("Monthly: %.1f km, %.0f m elevation\n",
+                    monthlyDistanceKm, monthlyElevationM);
+    }
+    return ok;
+  }
+
+  http.end();
+  return false;
+}
+
 void syncStrava() {
   if (WiFi.status() != WL_CONNECTED) return;
 
@@ -525,9 +607,15 @@ void syncStrava() {
   bool statsOk = fetchStravaStats();
   bool activityOk = fetchStravaLatestActivity();
   bool chainDistOk = fetchChainLubeDistance();
+  bool weeklyOk = fetchWeeklyDistance();
+  bool monthlyOk = fetchMonthlyStats();
+
+  if (statsOk) {
+    weeklyAverageKm = stravaStats.recent_ride_weekly_avg_km;
+  }
 
   // Back off on total failure to avoid burning rate limit quota
-  if (!statsOk && !activityOk && !chainDistOk) {
+  if (!statsOk && !activityOk && !chainDistOk && !weeklyOk && !monthlyOk) {
     stravaBackoffUntilMs = millis() + STRAVA_BACKOFF_MS;
     Serial.println("Strava sync all failed, backing off 15 min");
   }
@@ -536,9 +624,22 @@ void syncStrava() {
     stravaDataValid = true;
   }
 
-  Serial.printf("Strava sync done: stats=%s activity=%s chainDist=%s\n",
+  // Cache weekly/monthly stats to NVS
+  if (weeklyOk) {
+    preferences.putFloat("weekly_dist", weeklyDistanceKm);
+  }
+  if (statsOk) {
+    preferences.putFloat("weekly_avg", weeklyAverageKm);
+  }
+  if (monthlyOk) {
+    preferences.putFloat("month_dist", monthlyDistanceKm);
+    preferences.putFloat("month_elev", monthlyElevationM);
+  }
+
+  Serial.printf("Strava sync done: stats=%s activity=%s chainDist=%s weekly=%s monthly=%s\n",
                 statsOk ? "OK" : "FAIL", activityOk ? "OK" : "FAIL",
-                chainDistOk ? "OK" : "FAIL");
+                chainDistOk ? "OK" : "FAIL", weeklyOk ? "OK" : "FAIL",
+                monthlyOk ? "OK" : "FAIL");
 }
 
 // --- Weather API ---
@@ -978,6 +1079,12 @@ void setup() {
   if (chainLubeDistanceKm > 0.0f) {
     chainLubeDistanceValid = true;
   }
+
+  // Restore weekly/monthly stats cache
+  weeklyDistanceKm = preferences.getFloat("weekly_dist", 0.0f);
+  weeklyAverageKm = preferences.getFloat("weekly_avg", 0.0f);
+  monthlyDistanceKm = preferences.getFloat("month_dist", 0.0f);
+  monthlyElevationM = preferences.getFloat("month_elev", 0.0f);
 
   // Restore Strava tokens
   loadStravaTokens();

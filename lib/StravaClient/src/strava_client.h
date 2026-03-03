@@ -10,16 +10,23 @@ struct StravaActivity {
   uint32_t moving_time_sec;
 };
 
+struct StravaActivitiesStats {
+  float total_distance_km;
+  float total_elevation_m;
+};
+
 struct StravaStats {
   float all_ride_totals_km;
   int all_ride_count;
   float ytd_ride_totals_km;
+  float recent_ride_weekly_avg_km;  // recent_ride_totals / 4 weeks
 };
 
 class StravaClient {
 public:
   static bool parseActivity(const char* json, StravaActivity& out);
   static bool parseActivitiesDistance(const char* json, float& totalDistanceKm);
+  static bool parseActivitiesStats(const char* json, StravaActivitiesStats& out);
   static bool parseStats(const char* json, StravaStats& out);
   static bool parseTokenResponse(const char* json, char* accessToken,
                                   size_t atLen, char* refreshToken,
