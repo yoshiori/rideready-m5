@@ -10,6 +10,7 @@ struct StravaActivity {
   uint32_t moving_time_sec;
   char type[24];        // "Ride", "VirtualRide", "Run" etc.
   char start_date[11];  // "YYYY-MM-DD" (10 chars + null)
+  uint8_t start_hour;   // 0-23, parsed from start_date_local
   float start_lat;
   float start_lng;
   bool has_location;    // true if start_latlng was non-null/non-empty

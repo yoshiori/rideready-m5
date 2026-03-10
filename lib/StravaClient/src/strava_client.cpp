@@ -117,13 +117,17 @@ bool StravaClient::parseActivity(const char* json, StravaActivity& out) {
     out.type[0] = '\0';
   }
 
-  // start_date (first 10 chars of start_date_local)
+  // start_date and start_hour from start_date_local ("YYYY-MM-DDTHH:MM:SS")
   const char* startDate = activity["start_date_local"];
-  if (startDate && strlen(startDate) >= 10) {
+  if (startDate && strlen(startDate) >= 13) {
     strncpy(out.start_date, startDate, 10);
     out.start_date[10] = '\0';
+    // Parse hour from "YYYY-MM-DDTHH:..."
+    out.start_hour = static_cast<uint8_t>(
+        (startDate[11] - '0') * 10 + (startDate[12] - '0'));
   } else {
     out.start_date[0] = '\0';
+    out.start_hour = 0;
   }
 
   // start_latlng: [lat, lng] array
