@@ -200,6 +200,57 @@ void test_historical_empty_precipitation(void) {
   TEST_ASSERT_FALSE(rained);
 }
 
+// --- parseHistoricalPrecipitation with hour range ---
+
+// Rain at night (hour 2) but ride at 8am for 2 hours → no rain during ride
+void test_historical_rain_outside_ride_hours(void) {
+  // 24 hours of data, rain only at hour 2
+  const char* json = R"({
+    "hourly": {
+      "time": ["00","01","02","03","04","05","06","07","08","09","10","11",
+               "12","13","14","15","16","17","18","19","20","21","22","23"],
+      "precipitation": [0,0,5.0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]
+    }
+  })";
+
+  bool rained = true;
+  // Ride from hour 8, duration 2 hours
+  bool ok = WeatherClient::parseHistoricalPrecipitation(json, rained, 8, 2);
+  TEST_ASSERT_TRUE(ok);
+  TEST_ASSERT_FALSE(rained);
+}
+
+// Rain at hour 9, ride from 8am for 3 hours → rain during ride
+void test_historical_rain_during_ride_hours(void) {
+  const char* json = R"({
+    "hourly": {
+      "time": ["00","01","02","03","04","05","06","07","08","09","10","11",
+               "12","13","14","15","16","17","18","19","20","21","22","23"],
+      "precipitation": [0,0,0,0,0,0,0,0,0,2.0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]
+    }
+  })";
+
+  bool rained = false;
+  bool ok = WeatherClient::parseHistoricalPrecipitation(json, rained, 8, 3);
+  TEST_ASSERT_TRUE(ok);
+  TEST_ASSERT_TRUE(rained);
+}
+
+// Default params (no hour range) checks all hours — backward compatible
+void test_historical_default_checks_all_hours(void) {
+  const char* json = R"({
+    "hourly": {
+      "time": ["00","01","02"],
+      "precipitation": [0,0,1.0]
+    }
+  })";
+
+  bool rained = false;
+  bool ok = WeatherClient::parseHistoricalPrecipitation(json, rained);
+  TEST_ASSERT_TRUE(ok);
+  TEST_ASSERT_TRUE(rained);
+}
+
 int main(int argc, char** argv) {
   UNITY_BEGIN();
   RUN_TEST(test_parse_weather_full_response);
@@ -218,6 +269,9 @@ int main(int argc, char** argv) {
   RUN_TEST(test_historical_no_hourly);
   RUN_TEST(test_historical_invalid_json);
   RUN_TEST(test_historical_empty_precipitation);
+  RUN_TEST(test_historical_rain_outside_ride_hours);
+  RUN_TEST(test_historical_rain_during_ride_hours);
+  RUN_TEST(test_historical_default_checks_all_hours);
   UNITY_END();
   return 0;
 }

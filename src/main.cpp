@@ -77,7 +77,7 @@ char stravaAccessToken[256] = "";
 char stravaRefreshToken[256] = "";
 unsigned long stravaExpiresAt = 0;
 StravaStats stravaStats = {};
-StravaActivity stravaLatestActivity = {"", 0.0f, 0, "", "", 0.0f, 0.0f, false};
+StravaActivity stravaLatestActivity = {"", 0.0f, 0, "", "", 0, 0.0f, 0.0f, false};
 bool stravaDataValid = false;
 
 // Weekly/Monthly stats
@@ -636,8 +636,15 @@ bool checkRainRide(const StravaActivity& activity) {
   if (httpCode == 200) {
     String response = http.getString();
     bool rained = false;
-    if (WeatherClient::parseHistoricalPrecipitation(response.c_str(), rained)) {
-      Serial.printf("Rain check: rained=%s\n", rained ? "YES" : "NO");
+    // Only check precipitation during ride hours (+ 1h ceiling for partial hours)
+    uint8_t durationHours = static_cast<uint8_t>(
+        (activity.moving_time_sec + 3599) / 3600);
+    if (durationHours < 1) durationHours = 1;
+    if (WeatherClient::parseHistoricalPrecipitation(
+            response.c_str(), rained, activity.start_hour, durationHours)) {
+      Serial.printf("Rain check: hour=%d duration=%dh rained=%s\n",
+                    activity.start_hour, durationHours,
+                    rained ? "YES" : "NO");
       http.end();
       return rained;
     }

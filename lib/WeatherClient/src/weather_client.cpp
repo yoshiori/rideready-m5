@@ -25,7 +25,9 @@ bool WeatherClient::parseWeather(const char* json, WeatherData& out) {
   return true;
 }
 
-bool WeatherClient::parseHistoricalPrecipitation(const char* json, bool& rained) {
+bool WeatherClient::parseHistoricalPrecipitation(const char* json, bool& rained,
+                                                  uint8_t startHour,
+                                                  uint8_t durationHours) {
   JsonDocument doc;
   DeserializationError err = deserializeJson(doc, json);
   if (err) return false;
@@ -33,8 +35,12 @@ bool WeatherClient::parseHistoricalPrecipitation(const char* json, bool& rained)
   JsonArray precip = doc["hourly"]["precipitation"];
   if (precip.isNull()) return false;
 
+  size_t from = startHour;
+  size_t to = startHour + durationHours;  // exclusive
+  if (to > precip.size()) to = precip.size();
+
   rained = false;
-  for (size_t i = 0; i < precip.size(); i++) {
+  for (size_t i = from; i < to; i++) {
     if (precip[i].as<float>() >= RAIN_THRESHOLD_MM) {
       rained = true;
       break;

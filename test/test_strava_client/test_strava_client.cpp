@@ -221,6 +221,7 @@ void test_parse_activity_success(void) {
   TEST_ASSERT_EQUAL_UINT32(5400, activity.moving_time_sec);
   TEST_ASSERT_EQUAL_STRING("Ride", activity.type);
   TEST_ASSERT_EQUAL_STRING("2026-03-01", activity.start_date);
+  TEST_ASSERT_EQUAL_UINT8(8, activity.start_hour);
   TEST_ASSERT_TRUE(activity.has_location);
   TEST_ASSERT_FLOAT_WITHIN(0.001f, 35.6812f, activity.start_lat);
   TEST_ASSERT_FLOAT_WITHIN(0.001f, 139.7671f, activity.start_lng);
@@ -296,6 +297,7 @@ void test_parse_activity_missing_type(void) {
   TEST_ASSERT_TRUE(ok);
   TEST_ASSERT_EQUAL_STRING("", activity.type);
   TEST_ASSERT_EQUAL_STRING("", activity.start_date);
+  TEST_ASSERT_EQUAL_UINT8(0, activity.start_hour);
   TEST_ASSERT_FALSE(activity.has_location);
 }
 
