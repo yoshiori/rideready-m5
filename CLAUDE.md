@@ -39,13 +39,16 @@
 - NTP resync every 1 hour
 
 ## Maintenance Tracker
-- **B button**: Reset Tire Pressure timer
-- **C button**: Reset Chain Lube (distance + epoch)
+- All buttons use **long press (3 seconds)** to prevent accidental resets
+- **A button (hold 3s)**: Reset Tire Change distance — GPIO39 ghost triggers are safely ignored by long-press detection
+- **B button (hold 3s)**: Reset Tire Pressure timer
+- **C button (hold 3s)**: Reset Chain Lube (distance + epoch)
 - Cumulative uptime tracked via `millis()` and persisted to NVS every 60s
 - When NTP is synced, resets also store Unix epoch for date-based display
 - **Tire Pressure**: time-based display — NTP synced → "N days" (≤7) or "MM/DD" (>7); NTP not synced → "N h"
+- **Tire Change**: distance-based display — Strava API fetches activities since reset, sums distance in km
+  - Shows "0 km" until Strava sync completes after reset
 - **Chain Lube**: distance-based display — Strava API fetches activities since reset, sums distance in km
-  - ≥500 km → RED warning color
   - Shows "0 km" until Strava sync completes after reset
 
 ## Rain Ride Detection
@@ -65,7 +68,6 @@
 - Endpoint: `https://api.open-meteo.com/v1/forecast` with `current` + `hourly` params
 - Fetches: wind speed (km/h), wind direction (degrees→8-compass), weather code, 3h precipitation probability
 - Sync interval: 30 minutes
-- **A button**: Disabled (GPIO39 ghost triggers — ESP32 errata)
 - Displayed in ENV panel (CYAN, textSize 1) below hPa line
 - `WiFiClientSecure` + `HTTPClient` with `setInsecure()` (same pattern as Strava)
 
@@ -75,7 +77,7 @@
 - OAuth2 refresh token flow: initial token obtained manually via browser
 - Token auto-refresh before expiry (6h lifetime, 5min buffer)
 - Tokens persisted in NVS (`strava_at`, `strava_rt`, `strava_exp`)
-- Endpoints: `/athletes/{id}/stats` (total distance), `/athlete/activities?per_page=1` (latest ride), `/athlete/activities?after={epoch}&per_page=200` (chain lube distance)
+- Endpoints: `/athletes/{id}/stats` (total distance), `/athlete/activities?per_page=1` (latest ride), `/athlete/activities?after={epoch}&per_page=200` (chain lube + tire change distance)
 - Sync interval: 10 minutes
 - `WiFiClientSecure` + `HTTPClient` with `setInsecure()` (no cert pinning)
 - `ArduinoJson` v7 for JSON parsing (`JsonDocument`, not deprecated `StaticJsonDocument`)
@@ -85,12 +87,15 @@
 |-----|------|-------------|
 | `cum_uptime` | ULong64 | Cumulative uptime (ms) |
 | `tire_reset` | ULong64 | Tire pressure reset cumulative uptime (ms) |
+| `tchange_rst` | ULong64 | Tire change reset cumulative uptime (ms) |
 | `chain_reset` | ULong64 | Chain lube reset cumulative uptime (ms) |
 | `tire_epoch` | ULong64 | Tire pressure reset Unix timestamp |
+| `tchange_epo` | ULong64 | Tire change reset Unix timestamp |
 | `chain_epoch` | ULong64 | Chain lube reset Unix timestamp |
 | `strava_at` | String | Strava access token |
 | `strava_rt` | String | Strava refresh token |
 | `strava_exp` | ULong64 | Strava token expires_at (Unix epoch) |
+| `tchange_dist` | Float | Cached tire change distance since reset (km) |
 | `chain_dist` | Float | Cached chain lube distance since reset (km) |
 | `weekly_dist` | Float | Weekly distance cache (km) |
 | `weekly_avg` | Float | Weekly average distance cache (km) |
@@ -111,8 +116,9 @@
 +--------------------+----------------------+
 |--[Tire]------------------[Chain]---------|
 |      [TIRE 36px]       [CHAIN 72px]      |
-|       3 days              245 km         |
-|        ◀ B Reset ▷ C Reset               |
+|  Air: 3 days              245 km         |
+|  Tire: 1234 km                           |
+| ◀A Tire▷  ◀B Air▷     ◀C Chain▷         |
 +------------------------------------------+
 ```
 - INFO panel progress bar: green fill up to current, | marker at weekly average
@@ -121,10 +127,11 @@
 
 ## Maintenance Color Thresholds
 - **Tire Pressure**: WHITE (0-6 days) → YELLOW (7-13 days) → RED (14+ days)
+- **Tire Change**: WHITE (0-2999 km) → YELLOW (3000-4999 km) → RED (5000+ km)
 - **Chain Lube**: WHITE (0-299 km) → YELLOW (300-399 km) → RED (400+ km)
 - Severity logic lives in `lib/MaintenanceDisplay` (testable), color mapping in `main.cpp`
 
-## Button Map
-- **A button**: Disabled (GPIO39 ghost triggers due to ESP32 errata)
-- **B button**: Reset Tire Pressure timer
-- **C button**: Reset Chain Lube (distance + epoch)
+## Button Map (all long press 3s)
+- **A button (hold 3s)**: Reset Tire Change distance — GPIO39 ghost triggers safely ignored by long-press detection
+- **B button (hold 3s)**: Reset Tire Pressure timer
+- **C button (hold 3s)**: Reset Chain Lube (distance + epoch)

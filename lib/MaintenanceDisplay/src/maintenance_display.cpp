@@ -8,6 +8,8 @@ static const int WARNING_DAYS = 7;
 static const int CRITICAL_DAYS = 14;
 static const int WARNING_KM = 300;
 static const int CRITICAL_KM = 400;
+static const int TIRE_CHANGE_WARNING_KM = 3000;
+static const int TIRE_CHANGE_CRITICAL_KM = 5000;
 
 MaintenanceDisplayResult MaintenanceDisplay::format(time_t resetEpoch,
                                                      time_t currentEpoch,
@@ -47,19 +49,28 @@ MaintenanceDisplayResult MaintenanceDisplay::format(time_t resetEpoch,
   return result;
 }
 
-MaintenanceDisplayResult MaintenanceDisplay::formatDistance(float distanceKm) {
+MaintenanceDisplayResult MaintenanceDisplay::formatDistanceWithThresholds(
+    float distanceKm, int warningKm, int criticalKm) {
   MaintenanceDisplayResult result;
   int km = static_cast<int>(distanceKm);
   if (km < 0) km = 0;
   snprintf(result.text, sizeof(result.text), "%d km", km);
 
-  if (km >= CRITICAL_KM) {
+  if (km >= criticalKm) {
     result.severity = Severity::CRITICAL;
-  } else if (km >= WARNING_KM) {
+  } else if (km >= warningKm) {
     result.severity = Severity::WARNING;
   } else {
     result.severity = Severity::NORMAL;
   }
 
   return result;
+}
+
+MaintenanceDisplayResult MaintenanceDisplay::formatDistance(float distanceKm) {
+  return formatDistanceWithThresholds(distanceKm, WARNING_KM, CRITICAL_KM);
+}
+
+MaintenanceDisplayResult MaintenanceDisplay::formatTireChangeDistance(float distanceKm) {
+  return formatDistanceWithThresholds(distanceKm, TIRE_CHANGE_WARNING_KM, TIRE_CHANGE_CRITICAL_KM);
 }
