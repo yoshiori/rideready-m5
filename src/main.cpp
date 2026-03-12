@@ -1301,7 +1301,7 @@ static bool checkLongPress(Button& btn, unsigned long& lastTrigger,
                            bool& firedFlag, unsigned long now) {
   if (btn.isPressed()) {
     if (!firedFlag && btn.pressedFor(LONG_PRESS_MS) &&
-        (now - lastTrigger > BUTTON_DEBOUNCE_MS)) {
+        (lastTrigger == 0 || (now - lastTrigger >= BUTTON_DEBOUNCE_MS))) {
       lastTrigger = now;
       firedFlag = true;
       return true;
