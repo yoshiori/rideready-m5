@@ -637,9 +637,10 @@ bool checkRainRide(const StravaActivity& activity) {
     String response = http.getString();
     bool rained = false;
     // Only check precipitation during ride hours (+ 1h ceiling for partial hours)
-    uint8_t durationHours = static_cast<uint8_t>(
-        (activity.moving_time_sec + 3599) / 3600);
-    if (durationHours < 1) durationHours = 1;
+    // Clamped to [1, 255] — uint8_t max is 255 (>10 days, well beyond any ride)
+    unsigned long calcHours = (activity.moving_time_sec + 3599UL) / 3600UL;
+    if (calcHours == 0) calcHours = 1;
+    uint8_t durationHours = static_cast<uint8_t>(min(255UL, calcHours));
     if (WeatherClient::parseHistoricalPrecipitation(
             response.c_str(), rained, activity.start_hour, durationHours)) {
       Serial.printf("Rain check: hour=%d duration=%dh rained=%s\n",

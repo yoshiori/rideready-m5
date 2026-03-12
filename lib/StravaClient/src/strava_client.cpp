@@ -1,6 +1,7 @@
 #include "strava_client.h"
 
 #include <ArduinoJson.h>
+#include <cctype>
 #include <cstring>
 
 static constexpr float METERS_PER_KM = 1000.0f;
@@ -119,12 +120,16 @@ bool StravaClient::parseActivity(const char* json, StravaActivity& out) {
 
   // start_date and start_hour from start_date_local ("YYYY-MM-DDTHH:MM:SS")
   const char* startDate = activity["start_date_local"];
-  if (startDate && strlen(startDate) >= 13) {
+  if (startDate && strlen(startDate) >= 10) {
     strncpy(out.start_date, startDate, 10);
     out.start_date[10] = '\0';
-    // Parse hour from "YYYY-MM-DDTHH:..."
-    out.start_hour = static_cast<uint8_t>(
-        (startDate[11] - '0') * 10 + (startDate[12] - '0'));
+
+    if (strlen(startDate) >= 13 && isdigit(startDate[11]) && isdigit(startDate[12])) {
+      out.start_hour = static_cast<uint8_t>(
+          (startDate[11] - '0') * 10 + (startDate[12] - '0'));
+    } else {
+      out.start_hour = 0;
+    }
   } else {
     out.start_date[0] = '\0';
     out.start_hour = 0;

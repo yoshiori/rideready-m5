@@ -301,6 +301,22 @@ void test_parse_activity_missing_type(void) {
   TEST_ASSERT_FALSE(activity.has_location);
 }
 
+void test_parse_activity_date_only_no_time(void) {
+  const char* json = R"([{
+    "name": "Old Ride",
+    "distance": 10000.0,
+    "moving_time": 1800,
+    "start_date_local": "2026-03-01",
+    "type": "Ride"
+  }])";
+
+  StravaActivity activity;
+  bool ok = StravaClient::parseActivity(json, activity);
+  TEST_ASSERT_TRUE(ok);
+  TEST_ASSERT_EQUAL_STRING("2026-03-01", activity.start_date);
+  TEST_ASSERT_EQUAL_UINT8(0, activity.start_hour);
+}
+
 int main(int argc, char** argv) {
   UNITY_BEGIN();
   RUN_TEST(test_parse_token_response_success);
@@ -323,6 +339,7 @@ int main(int argc, char** argv) {
   RUN_TEST(test_parse_activity_null_latlng);
   RUN_TEST(test_parse_activity_empty_latlng);
   RUN_TEST(test_parse_activity_missing_type);
+  RUN_TEST(test_parse_activity_date_only_no_time);
   UNITY_END();
   return 0;
 }
