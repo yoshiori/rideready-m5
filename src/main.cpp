@@ -760,7 +760,7 @@ void fetchWeather() {
   String url = "https://api.open-meteo.com/v1/forecast"
                "?latitude=" WEATHER_LAT
                "&longitude=" WEATHER_LON
-               "&current=wind_speed_10m,wind_direction_10m,weather_code"
+               "&current=temperature_2m,wind_speed_10m,wind_direction_10m,weather_code"
                "&hourly=precipitation_probability"
                "&forecast_hours=4"
                "&timezone=Asia/Tokyo";
@@ -777,7 +777,8 @@ void fetchWeather() {
     String response = http.getString();
     if (WeatherClient::parseWeather(response.c_str(), weatherData)) {
       weatherDataValid = true;
-      Serial.printf("Weather: %.0f km/h %s code=%d precip3h=%d%%\n",
+      Serial.printf("Weather: %.1fC %.0f km/h %s code=%d precip3h=%d%%\n",
+                    weatherData.temperature_c,
                     weatherData.wind_speed_kmh,
                     WeatherClient::windDirectionToCompass(weatherData.wind_direction_deg),
                     weatherData.weather_code,
@@ -813,12 +814,12 @@ void readSensors() {
 void drawStaticLayout() {
   M5.Lcd.fillScreen(COL_BG);
 
-  // Room header bar
+  // Out header bar (top — prominent)
   M5.Lcd.fillRoundRect(1, 1, 157, 16, 3, COL_HEADER_BG);
   M5.Lcd.setTextFont(2);
   M5.Lcd.setTextSize(1);
   M5.Lcd.setTextColor(COL_ACCENT_CYAN, COL_HEADER_BG);
-  M5.Lcd.drawString("Room", 6, 0);
+  M5.Lcd.drawString("Out", 6, 0);
 
   // INFO header bar
   M5.Lcd.fillRoundRect(161, 1, 157, 16, 3, COL_HEADER_BG);
@@ -841,16 +842,12 @@ void drawStaticLayout() {
   // Room/Out divider
   M5.Lcd.drawFastHLine(4, 66, 152, COL_DIVIDER);
 
-  // "Out" sub-header bar
+  // "Room" sub-header bar (bottom — compact)
   M5.Lcd.fillRoundRect(1, 68, 157, 14, 3, COL_HEADER_BG);
   M5.Lcd.setTextFont(2);
   M5.Lcd.setTextSize(1);
   M5.Lcd.setTextColor(COL_ACCENT_CYAN, COL_HEADER_BG);
-  M5.Lcd.drawString("Out", 6, 68);
-
-  // Static Room icons
-  drawThermometer(2, 22, COL_ACCENT_CYAN);
-  drawDrop(2, 50, COL_ACCENT_CYAN);
+  M5.Lcd.drawString("Room", 6, 68);
 
   // Button hints — Powerline style bar (3 segments, aligned to physical buttons)
   {
@@ -896,21 +893,14 @@ void drawStaticLayout() {
 void drawEnvPanel() {
   char buf[32];
 
-  // --- Room section (sensor data) ---
-  if (!sensorOk) {
-    M5.Lcd.setTextFont(1);
-    M5.Lcd.setTextSize(1);
-    M5.Lcd.setTextColor(COL_CRIT_RED, COL_BG);
-    M5.Lcd.setTextPadding(140);
-    M5.Lcd.drawString("Sensor Failed!", 16, 34);
-    M5.Lcd.setTextPadding(0);
-  } else {
-    // Temperature (hero) — Font4, PRIMARY
+  // --- Out section (top — prominent, weather API data) ---
+  if (weatherDataValid) {
+    // Outdoor temperature (hero) — Font4, PRIMARY
     M5.Lcd.setTextFont(4);
     M5.Lcd.setTextSize(1);
     M5.Lcd.setTextColor(COL_TEXT_PRIMARY, COL_BG);
     M5.Lcd.setTextPadding(80);
-    snprintf(buf, sizeof(buf), "%.1f", temperature);
+    snprintf(buf, sizeof(buf), "%.1f", weatherData.temperature_c);
     int tw = M5.Lcd.drawString(buf, 16, 20);
     // Degree circle + C
     M5.Lcd.fillCircle(tw + 19, 23, 2, COL_TEXT_SECONDARY);
@@ -919,46 +909,48 @@ void drawEnvPanel() {
     M5.Lcd.setTextPadding(0);
     M5.Lcd.drawString("C", tw + 24, 22);
 
-    // Humidity + Pressure compact line — Font2, SECONDARY
-    M5.Lcd.fillRect(14, 48, 142, 16, COL_BG);
-    M5.Lcd.setTextFont(2);
-    M5.Lcd.setTextSize(1);
-    M5.Lcd.setTextColor(COL_TEXT_SECONDARY, COL_BG);
-    snprintf(buf, sizeof(buf), "%.1f%%", humidity);
-    int hw = M5.Lcd.drawString(buf, 16, 48);
-    // Pressure value
-    int px = 16 + hw + 4;
-    snprintf(buf, sizeof(buf), "%.0f", pressure_hpa);
-    int pw = M5.Lcd.drawString(buf, px, 48);
-    // Trend arrow
-    drawTrendArrow(px + pw + 1, 48, pressureTrend.direction(), COL_TEXT_SECONDARY);
-    // hPa label
-    M5.Lcd.setTextFont(1);
-    M5.Lcd.setTextColor(COL_TEXT_MUTED, COL_BG);
-    M5.Lcd.drawString("hPa", px + pw + 13, 52);
-  }
-
-  // --- Out section (weather, independent of sensor) ---
-  if (weatherDataValid) {
-    drawWeatherIcon(4, 84, weatherData.weather_code, COL_ACCENT_CYAN);
-    // Wind speed + direction — Font2, CYAN
+    // Wind + weather icon + precipitation — compact line
+    drawWeatherIcon(4, 48, weatherData.weather_code, COL_ACCENT_CYAN);
     M5.Lcd.setTextFont(2);
     M5.Lcd.setTextSize(1);
     M5.Lcd.setTextColor(COL_ACCENT_CYAN, COL_BG);
     M5.Lcd.setTextPadding(126);
-    snprintf(buf, sizeof(buf), "%.0fkm/h %s",
-             weatherData.wind_speed_kmh,
-             WeatherClient::windDirectionToCompass(weatherData.wind_direction_deg));
-    M5.Lcd.drawString(buf, 26, 84);
-    // Precipitation probability — Font1, CYAN
     if (weatherData.precipitation_probability_3h >= 0) {
-      M5.Lcd.setTextFont(1);
-      M5.Lcd.setTextColor(COL_ACCENT_CYAN, COL_BG);
-      M5.Lcd.setTextPadding(126);
-      snprintf(buf, sizeof(buf), "Rain 3h: %d%%",
+      snprintf(buf, sizeof(buf), "%.0fkm/h %s %d%%",
+               weatherData.wind_speed_kmh,
+               WeatherClient::windDirectionToCompass(weatherData.wind_direction_deg),
                weatherData.precipitation_probability_3h);
-      M5.Lcd.drawString(buf, 26, 104);
+    } else {
+      snprintf(buf, sizeof(buf), "%.0fkm/h %s",
+               weatherData.wind_speed_kmh,
+               WeatherClient::windDirectionToCompass(weatherData.wind_direction_deg));
     }
+    M5.Lcd.drawString(buf, 26, 48);
+  }
+
+  // --- Room section (bottom — compact, sensor data) ---
+  if (!sensorOk) {
+    M5.Lcd.setTextFont(1);
+    M5.Lcd.setTextSize(1);
+    M5.Lcd.setTextColor(COL_CRIT_RED, COL_BG);
+    M5.Lcd.setTextPadding(140);
+    M5.Lcd.drawString("Sensor Failed!", 16, 86);
+    M5.Lcd.setTextPadding(0);
+  } else {
+    // Room: temp, humidity, pressure in compact lines — Font2, SECONDARY
+    M5.Lcd.fillRect(4, 84, 152, 34, COL_BG);
+    M5.Lcd.setTextFont(2);
+    M5.Lcd.setTextSize(1);
+    M5.Lcd.setTextColor(COL_TEXT_SECONDARY, COL_BG);
+    snprintf(buf, sizeof(buf), "%.1fC  %.1f%%", temperature, humidity);
+    M5.Lcd.drawString(buf, 6, 84);
+    // Pressure + trend
+    snprintf(buf, sizeof(buf), "%.0f", pressure_hpa);
+    int pw = M5.Lcd.drawString(buf, 6, 100);
+    drawTrendArrow(6 + pw + 1, 100, pressureTrend.direction(), COL_TEXT_SECONDARY);
+    M5.Lcd.setTextFont(1);
+    M5.Lcd.setTextColor(COL_TEXT_MUTED, COL_BG);
+    M5.Lcd.drawString("hPa", 6 + pw + 13, 104);
   }
 
   M5.Lcd.setTextPadding(0);

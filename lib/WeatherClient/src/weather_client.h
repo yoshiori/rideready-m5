@@ -4,6 +4,7 @@
 #include <stdint.h>
 
 struct WeatherData {
+  float temperature_c;
   float wind_speed_kmh;
   int wind_direction_deg;
   int weather_code;

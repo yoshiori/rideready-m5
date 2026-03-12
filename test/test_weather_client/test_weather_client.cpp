@@ -8,6 +8,7 @@
 void test_parse_weather_full_response(void) {
   const char* json = R"({
     "current": {
+      "temperature_2m": 18.3,
       "wind_speed_10m": 12.5,
       "wind_direction_10m": 225,
       "weather_code": 3
@@ -20,6 +21,7 @@ void test_parse_weather_full_response(void) {
   WeatherData data;
   bool ok = WeatherClient::parseWeather(json, data);
   TEST_ASSERT_TRUE(ok);
+  TEST_ASSERT_FLOAT_WITHIN(0.1f, 18.3f, data.temperature_c);
   TEST_ASSERT_FLOAT_WITHIN(0.1f, 12.5f, data.wind_speed_kmh);
   TEST_ASSERT_EQUAL_INT(225, data.wind_direction_deg);
   TEST_ASSERT_EQUAL_INT(3, data.weather_code);
