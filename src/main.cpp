@@ -113,6 +113,9 @@ bool rainRideFlag = false;
 unsigned long lastBtnATrigger = 0;
 unsigned long lastBtnBTrigger = 0;
 unsigned long lastBtnCTrigger = 0;
+bool btnAFired = false;
+bool btnBFired = false;
+bool btnCFired = false;
 
 static uint64_t currentCumulativeMs() {
   return cumulativeUptimeMs + (millis() - lastUptimeUpdateMs);
@@ -1293,13 +1296,18 @@ void setup() {
   drawMaintenancePanel();
 }
 
-// Check long-press with debounce; returns true if action should fire
+// Check long-press with debounce; fires once per press cycle
 static bool checkLongPress(Button& btn, unsigned long& lastTrigger,
-                           unsigned long now) {
-  if (btn.pressedFor(LONG_PRESS_MS) &&
-      (now - lastTrigger > BUTTON_DEBOUNCE_MS)) {
-    lastTrigger = now;
-    return true;
+                           bool& firedFlag, unsigned long now) {
+  if (btn.isPressed()) {
+    if (!firedFlag && btn.pressedFor(LONG_PRESS_MS) &&
+        (now - lastTrigger > BUTTON_DEBOUNCE_MS)) {
+      lastTrigger = now;
+      firedFlag = true;
+      return true;
+    }
+  } else {
+    firedFlag = false;
   }
   return false;
 }
@@ -1310,7 +1318,6 @@ static void resetTireChange() {
   updateResetEpoch(tireChange);
   tireChangeDistanceKm = 0.0f;
   tireChangeDistanceValid = false;
-  preferences.putFloat("tchange_dist", 0.0f);
   saveToNvs();
   stravaSyncNeeded = true;
   drawMaintenancePanel();
@@ -1333,8 +1340,6 @@ static void resetChainLube() {
   chainLubeDistanceKm = 0.0f;
   chainLubeDistanceValid = false;
   rainRideFlag = false;
-  preferences.putFloat("chain_dist", 0.0f);
-  preferences.putBool("rain_ride", false);
   saveToNvs();
   stravaSyncNeeded = true;
   drawMaintenancePanel();
@@ -1346,9 +1351,9 @@ void loop() {
 
   unsigned long now = millis();
 
-  if (checkLongPress(M5.BtnA, lastBtnATrigger, now)) resetTireChange();
-  if (checkLongPress(M5.BtnB, lastBtnBTrigger, now)) resetTirePressure();
-  if (checkLongPress(M5.BtnC, lastBtnCTrigger, now)) resetChainLube();
+  if (checkLongPress(M5.BtnA, lastBtnATrigger, btnAFired, now)) resetTireChange();
+  if (checkLongPress(M5.BtnB, lastBtnBTrigger, btnBFired, now)) resetTirePressure();
+  if (checkLongPress(M5.BtnC, lastBtnCTrigger, btnCFired, now)) resetChainLube();
 
   // Wi-Fi reconnection (every 30s)
   if (WiFi.status() != WL_CONNECTED &&
