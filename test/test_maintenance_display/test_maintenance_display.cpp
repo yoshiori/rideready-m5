@@ -177,6 +177,48 @@ void test_format_distance_rounds_down(void) {
   TEST_ASSERT_EQUAL_STRING("99 km", result.text);
 }
 
+// --- Tire change distance severity ---
+
+void test_tire_change_severity_0km_normal(void) {
+  MaintenanceDisplayResult result = MaintenanceDisplay::formatTireChangeDistance(0.0f);
+  TEST_ASSERT_EQUAL(Severity::NORMAL, result.severity);
+}
+
+void test_tire_change_severity_2999km_normal(void) {
+  MaintenanceDisplayResult result = MaintenanceDisplay::formatTireChangeDistance(2999.9f);
+  TEST_ASSERT_EQUAL(Severity::NORMAL, result.severity);
+}
+
+void test_tire_change_severity_3000km_warning(void) {
+  MaintenanceDisplayResult result = MaintenanceDisplay::formatTireChangeDistance(3000.0f);
+  TEST_ASSERT_EQUAL(Severity::WARNING, result.severity);
+}
+
+void test_tire_change_severity_4999km_warning(void) {
+  MaintenanceDisplayResult result = MaintenanceDisplay::formatTireChangeDistance(4999.9f);
+  TEST_ASSERT_EQUAL(Severity::WARNING, result.severity);
+}
+
+void test_tire_change_severity_5000km_critical(void) {
+  MaintenanceDisplayResult result = MaintenanceDisplay::formatTireChangeDistance(5000.0f);
+  TEST_ASSERT_EQUAL(Severity::CRITICAL, result.severity);
+}
+
+void test_format_tire_change_distance_text(void) {
+  MaintenanceDisplayResult result = MaintenanceDisplay::formatTireChangeDistance(1234.5f);
+  TEST_ASSERT_EQUAL_STRING("1234 km", result.text);
+}
+
+void test_format_tire_change_distance_zero(void) {
+  MaintenanceDisplayResult result = MaintenanceDisplay::formatTireChangeDistance(0.0f);
+  TEST_ASSERT_EQUAL_STRING("0 km", result.text);
+}
+
+void test_format_tire_change_distance_negative(void) {
+  MaintenanceDisplayResult result = MaintenanceDisplay::formatTireChangeDistance(-5.0f);
+  TEST_ASSERT_EQUAL_STRING("0 km", result.text);
+}
+
 int main(int argc, char **argv) {
   UNITY_BEGIN();
   RUN_TEST(test_no_epoch_shows_hours);
@@ -202,6 +244,14 @@ int main(int argc, char **argv) {
   RUN_TEST(test_format_distance_negative);
   RUN_TEST(test_format_distance_large);
   RUN_TEST(test_format_distance_rounds_down);
+  RUN_TEST(test_tire_change_severity_0km_normal);
+  RUN_TEST(test_tire_change_severity_2999km_normal);
+  RUN_TEST(test_tire_change_severity_3000km_warning);
+  RUN_TEST(test_tire_change_severity_4999km_warning);
+  RUN_TEST(test_tire_change_severity_5000km_critical);
+  RUN_TEST(test_format_tire_change_distance_text);
+  RUN_TEST(test_format_tire_change_distance_zero);
+  RUN_TEST(test_format_tire_change_distance_negative);
   UNITY_END();
   return 0;
 }
