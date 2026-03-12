@@ -49,15 +49,16 @@ MaintenanceDisplayResult MaintenanceDisplay::format(time_t resetEpoch,
   return result;
 }
 
-MaintenanceDisplayResult MaintenanceDisplay::formatDistance(float distanceKm) {
+MaintenanceDisplayResult MaintenanceDisplay::formatDistanceWithThresholds(
+    float distanceKm, int warningKm, int criticalKm) {
   MaintenanceDisplayResult result;
   int km = static_cast<int>(distanceKm);
   if (km < 0) km = 0;
   snprintf(result.text, sizeof(result.text), "%d km", km);
 
-  if (km >= CRITICAL_KM) {
+  if (km >= criticalKm) {
     result.severity = Severity::CRITICAL;
-  } else if (km >= WARNING_KM) {
+  } else if (km >= warningKm) {
     result.severity = Severity::WARNING;
   } else {
     result.severity = Severity::NORMAL;
@@ -66,19 +67,10 @@ MaintenanceDisplayResult MaintenanceDisplay::formatDistance(float distanceKm) {
   return result;
 }
 
+MaintenanceDisplayResult MaintenanceDisplay::formatDistance(float distanceKm) {
+  return formatDistanceWithThresholds(distanceKm, WARNING_KM, CRITICAL_KM);
+}
+
 MaintenanceDisplayResult MaintenanceDisplay::formatTireChangeDistance(float distanceKm) {
-  MaintenanceDisplayResult result;
-  int km = static_cast<int>(distanceKm);
-  if (km < 0) km = 0;
-  snprintf(result.text, sizeof(result.text), "%d km", km);
-
-  if (km >= TIRE_CHANGE_CRITICAL_KM) {
-    result.severity = Severity::CRITICAL;
-  } else if (km >= TIRE_CHANGE_WARNING_KM) {
-    result.severity = Severity::WARNING;
-  } else {
-    result.severity = Severity::NORMAL;
-  }
-
-  return result;
+  return formatDistanceWithThresholds(distanceKm, TIRE_CHANGE_WARNING_KM, TIRE_CHANGE_CRITICAL_KM);
 }

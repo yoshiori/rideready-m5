@@ -472,11 +472,12 @@ bool fetchStravaLatestActivity() {
   return false;
 }
 
-bool fetchChainLubeDistance(bool isRetry = false) {
-  time_t resetEpoch = chainLube.resetEpoch();
+// Common helper: fetch distance since reset epoch from Strava activities API
+bool fetchDistanceSinceEpoch(time_t resetEpoch, float& outDistanceKm,
+                             bool& outValid, const char* label,
+                             bool isRetry = false) {
   if (resetEpoch == 0) {
-    // No reset epoch recorded; cannot query by date
-    chainLubeDistanceValid = false;
+    outValid = false;
     return false;
   }
 
@@ -494,7 +495,7 @@ bool fetchChainLubeDistance(bool isRetry = false) {
   http.addHeader("Authorization", "Bearer " + String(stravaAccessToken));
 
   int httpCode = http.GET();
-  Serial.printf("Strava chain lube distance: HTTP %d\n", httpCode);
+  Serial.printf("Strava %s distance: HTTP %d\n", label, httpCode);
 
   if (httpCode == 200) {
     String response = http.getString();
@@ -502,9 +503,9 @@ bool fetchChainLubeDistance(bool isRetry = false) {
     bool ok = StravaClient::parseActivitiesDistance(response.c_str(), totalKm);
     http.end();
     if (ok) {
-      chainLubeDistanceKm = totalKm;
-      chainLubeDistanceValid = true;
-      Serial.printf("Chain lube distance since reset: %.1f km\n", totalKm);
+      outDistanceKm = totalKm;
+      outValid = true;
+      Serial.printf("%s distance since reset: %.1f km\n", label, totalKm);
     }
     return ok;
   }
@@ -513,7 +514,8 @@ bool fetchChainLubeDistance(bool isRetry = false) {
     Serial.println("Strava: Unauthorized, will refresh token");
     http.end();
     if (refreshStravaToken()) {
-      return fetchChainLubeDistance(true);
+      return fetchDistanceSinceEpoch(resetEpoch, outDistanceKm, outValid,
+                                     label, true);
     }
     return false;
   }
@@ -522,53 +524,14 @@ bool fetchChainLubeDistance(bool isRetry = false) {
   return false;
 }
 
-bool fetchTireChangeDistance(bool isRetry = false) {
-  time_t resetEpoch = tireChange.resetEpoch();
-  if (resetEpoch == 0) {
-    tireChangeDistanceValid = false;
-    return false;
-  }
+bool fetchChainLubeDistance() {
+  return fetchDistanceSinceEpoch(chainLube.resetEpoch(), chainLubeDistanceKm,
+                                 chainLubeDistanceValid, "Chain lube");
+}
 
-  WiFiClientSecure client;
-  client.setInsecure();
-
-  HTTPClient http;
-  String url = "https://www.strava.com/api/v3/athlete/activities?after=" +
-               String(static_cast<unsigned long>(resetEpoch)) + "&per_page=200";
-
-  if (!http.begin(client, url)) {
-    return false;
-  }
-
-  http.addHeader("Authorization", "Bearer " + String(stravaAccessToken));
-
-  int httpCode = http.GET();
-  Serial.printf("Strava tire change distance: HTTP %d\n", httpCode);
-
-  if (httpCode == 200) {
-    String response = http.getString();
-    float totalKm = 0.0f;
-    bool ok = StravaClient::parseActivitiesDistance(response.c_str(), totalKm);
-    http.end();
-    if (ok) {
-      tireChangeDistanceKm = totalKm;
-      tireChangeDistanceValid = true;
-      Serial.printf("Tire change distance since reset: %.1f km\n", totalKm);
-    }
-    return ok;
-  }
-
-  if (httpCode == 401 && !isRetry) {
-    Serial.println("Strava: Unauthorized, will refresh token");
-    http.end();
-    if (refreshStravaToken()) {
-      return fetchTireChangeDistance(true);
-    }
-    return false;
-  }
-
-  http.end();
-  return false;
+bool fetchTireChangeDistance() {
+  return fetchDistanceSinceEpoch(tireChange.resetEpoch(), tireChangeDistanceKm,
+                                 tireChangeDistanceValid, "Tire change");
 }
 
 bool fetchWeeklyDistance() {
@@ -1147,26 +1110,25 @@ void drawMaintenancePanel() {
   // Tire icon (36x36, centered in left half)
   drawTireIcon(62, 142, tirePressColor);
 
-  // Tire Pressure value (air)
-  M5.Lcd.setTextFont(2);
-  M5.Lcd.setTextSize(1);
-  M5.Lcd.setTextColor(tirePressColor, COL_BG);
-  M5.Lcd.setTextDatum(TC_DATUM);
-  M5.Lcd.setTextPadding(80);
-  char tirePressLabel[24];
-  snprintf(tirePressLabel, sizeof(tirePressLabel), "Air: %s", tirePressResult.text);
-  M5.Lcd.drawString(tirePressLabel, 80, 182);
-
-  // Tire Change distance (lower left)
+  // Tire Change distance
   MaintenanceDisplayResult tireChangeResult =
       MaintenanceDisplay::formatTireChangeDistance(tireChangeDistanceKm);
   uint16_t tireChangeColor = severityColor(tireChangeResult.severity);
 
+  // Common text settings for tire labels
   M5.Lcd.setTextFont(2);
   M5.Lcd.setTextSize(1);
-  M5.Lcd.setTextColor(tireChangeColor, COL_BG);
   M5.Lcd.setTextDatum(TC_DATUM);
   M5.Lcd.setTextPadding(80);
+
+  // Tire Pressure value (air)
+  M5.Lcd.setTextColor(tirePressColor, COL_BG);
+  char tirePressLabel[24];
+  snprintf(tirePressLabel, sizeof(tirePressLabel), "Air: %s", tirePressResult.text);
+  M5.Lcd.drawString(tirePressLabel, 80, 182);
+
+  // Tire Change value
+  M5.Lcd.setTextColor(tireChangeColor, COL_BG);
   char tireChangeLabel[24];
   snprintf(tireChangeLabel, sizeof(tireChangeLabel), "Tire: %s", tireChangeResult.text);
   M5.Lcd.drawString(tireChangeLabel, 80, 200);
@@ -1331,59 +1293,62 @@ void setup() {
   drawMaintenancePanel();
 }
 
+// Check long-press with debounce; returns true if action should fire
+static bool checkLongPress(Button& btn, unsigned long& lastTrigger,
+                           unsigned long now) {
+  if (btn.pressedFor(LONG_PRESS_MS) &&
+      (now - lastTrigger > BUTTON_DEBOUNCE_MS)) {
+    lastTrigger = now;
+    return true;
+  }
+  return false;
+}
+
+static void resetTireChange() {
+  uint64_t cumNow = currentCumulativeMs();
+  tireChange.reset(cumNow);
+  updateResetEpoch(tireChange);
+  tireChangeDistanceKm = 0.0f;
+  tireChangeDistanceValid = false;
+  preferences.putFloat("tchange_dist", 0.0f);
+  saveToNvs();
+  stravaSyncNeeded = true;
+  drawMaintenancePanel();
+  Serial.println("Tire Change reset");
+}
+
+static void resetTirePressure() {
+  uint64_t cumNow = currentCumulativeMs();
+  tirePressure.reset(cumNow);
+  updateResetEpoch(tirePressure);
+  saveToNvs();
+  drawMaintenancePanel();
+  Serial.println("Tire Pressure timer reset");
+}
+
+static void resetChainLube() {
+  uint64_t cumNow = currentCumulativeMs();
+  chainLube.reset(cumNow);
+  updateResetEpoch(chainLube);
+  chainLubeDistanceKm = 0.0f;
+  chainLubeDistanceValid = false;
+  rainRideFlag = false;
+  preferences.putFloat("chain_dist", 0.0f);
+  preferences.putBool("rain_ride", false);
+  saveToNvs();
+  stravaSyncNeeded = true;
+  drawMaintenancePanel();
+  Serial.println("Chain Lube reset (distance + rain flag cleared)");
+}
+
 void loop() {
   M5.update();
 
   unsigned long now = millis();
 
-  // A button (long press): reset Tire Change distance
-  if (M5.BtnA.pressedFor(LONG_PRESS_MS)) {
-    if (now - lastBtnATrigger > BUTTON_DEBOUNCE_MS) {
-      lastBtnATrigger = now;
-      uint64_t cumNow = currentCumulativeMs();
-      tireChange.reset(cumNow);
-      updateResetEpoch(tireChange);
-      tireChangeDistanceKm = 0.0f;
-      tireChangeDistanceValid = false;
-      preferences.putFloat("tchange_dist", 0.0f);
-      saveToNvs();
-      stravaSyncNeeded = true;
-      drawMaintenancePanel();
-      Serial.println("Tire Change reset");
-    }
-  }
-
-  // B button (long press): reset Tire Pressure timer
-  if (M5.BtnB.pressedFor(LONG_PRESS_MS)) {
-    if (now - lastBtnBTrigger > BUTTON_DEBOUNCE_MS) {
-      lastBtnBTrigger = now;
-      uint64_t cumNow = currentCumulativeMs();
-      tirePressure.reset(cumNow);
-      updateResetEpoch(tirePressure);
-      saveToNvs();
-      drawMaintenancePanel();
-      Serial.println("Tire Pressure timer reset");
-    }
-  }
-
-  // C button (long press): reset Chain Lube
-  if (M5.BtnC.pressedFor(LONG_PRESS_MS)) {
-    if (now - lastBtnCTrigger > BUTTON_DEBOUNCE_MS) {
-      lastBtnCTrigger = now;
-      uint64_t cumNow = currentCumulativeMs();
-      chainLube.reset(cumNow);
-      updateResetEpoch(chainLube);
-      chainLubeDistanceKm = 0.0f;
-      chainLubeDistanceValid = false;
-      rainRideFlag = false;
-      preferences.putFloat("chain_dist", 0.0f);
-      preferences.putBool("rain_ride", false);
-      saveToNvs();
-      stravaSyncNeeded = true;
-      drawMaintenancePanel();
-      Serial.println("Chain Lube reset (distance + rain flag cleared)");
-    }
-  }
+  if (checkLongPress(M5.BtnA, lastBtnATrigger, now)) resetTireChange();
+  if (checkLongPress(M5.BtnB, lastBtnBTrigger, now)) resetTirePressure();
+  if (checkLongPress(M5.BtnC, lastBtnCTrigger, now)) resetChainLube();
 
   // Wi-Fi reconnection (every 30s)
   if (WiFi.status() != WL_CONNECTED &&

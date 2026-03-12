@@ -21,6 +21,10 @@ public:
                                          uint64_t elapsedMs);
   static MaintenanceDisplayResult formatDistance(float distanceKm);
   static MaintenanceDisplayResult formatTireChangeDistance(float distanceKm);
+
+private:
+  static MaintenanceDisplayResult formatDistanceWithThresholds(
+      float distanceKm, int warningKm, int criticalKm);
 };
 
 #endif
