@@ -740,11 +740,6 @@ void syncStrava() {
     preferences.putFloat("month_elev", monthlyElevationM);
   }
 
-  // Cache tire change distance to NVS
-  if (tireDistOk) {
-    preferences.putFloat("tchange_dist", tireChangeDistanceKm);
-  }
-
   Serial.printf("Strava sync done: stats=%s activity=%s chainDist=%s tireDist=%s weekly=%s monthly=%s\n",
                 statsOk ? "OK" : "FAIL", activityOk ? "OK" : "FAIL",
                 chainDistOk ? "OK" : "FAIL", tireDistOk ? "OK" : "FAIL",
