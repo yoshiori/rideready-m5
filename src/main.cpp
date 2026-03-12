@@ -915,15 +915,10 @@ void drawEnvPanel() {
     M5.Lcd.setTextSize(1);
     M5.Lcd.setTextColor(COL_ACCENT_CYAN, COL_BG);
     M5.Lcd.setTextPadding(126);
-    if (weatherData.precipitation_probability_3h >= 0) {
-      snprintf(buf, sizeof(buf), "%.0fkm/h %s %d%%",
-               weatherData.wind_speed_kmh,
-               WeatherClient::windDirectionToCompass(weatherData.wind_direction_deg),
-               weatherData.precipitation_probability_3h);
-    } else {
-      snprintf(buf, sizeof(buf), "%.0fkm/h %s",
-               weatherData.wind_speed_kmh,
-               WeatherClient::windDirectionToCompass(weatherData.wind_direction_deg));
+    const char* compass = WeatherClient::windDirectionToCompass(weatherData.wind_direction_deg);
+    int len = snprintf(buf, sizeof(buf), "%.0fkm/h %s", weatherData.wind_speed_kmh, compass);
+    if (weatherData.precipitation_probability_3h >= 0 && len > 0 && (size_t)len < sizeof(buf)) {
+      snprintf(buf + len, sizeof(buf) - len, " %d%%", weatherData.precipitation_probability_3h);
     }
     M5.Lcd.drawString(buf, 26, 48);
   }
