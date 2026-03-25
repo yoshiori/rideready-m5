@@ -10,6 +10,7 @@ bool WeatherClient::parseWeather(const char* json, WeatherData& out) {
   JsonObject current = doc["current"];
   if (current.isNull()) return false;
 
+  out.temperature_c = current["temperature_2m"].as<float>();
   out.wind_speed_kmh = current["wind_speed_10m"].as<float>();
   out.wind_direction_deg = current["wind_direction_10m"].as<int>();
   out.weather_code = current["weather_code"].as<int>();
