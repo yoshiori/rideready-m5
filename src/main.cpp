@@ -1294,7 +1294,9 @@ static bool checkLongPress(Button& btn, unsigned long& lastTrigger,
   return false;
 }
 
-// Check dual long-press (B+C simultaneously); fires once per press cycle
+// Check dual long-press (B+C simultaneously); fires once per press cycle.
+// btnBCFired is reset in loop() only when both buttons are released,
+// to prevent single-button ghost fires when one button is released first.
 static bool checkDualLongPress(unsigned long now) {
   if (M5.BtnB.isPressed() && M5.BtnC.isPressed()) {
     if (!btnBCFired && M5.BtnB.pressedFor(LONG_PRESS_MS) &&
@@ -1305,8 +1307,6 @@ static bool checkDualLongPress(unsigned long now) {
       btnBCFired = true;
       return true;
     }
-  } else {
-    btnBCFired = false;
   }
   return false;
 }
@@ -1350,10 +1350,15 @@ void loop() {
 
   unsigned long now = millis();
 
-  // Check B+C dual long-press first; skip individual B/C if dual fired
-  bool dualFired = checkDualLongPress(now);
-  if (dualFired) resetTireChange();
-  if (!dualFired) {
+  // Reset dual-press flag only when both buttons are released
+  if (!M5.BtnB.isPressed() && !M5.BtnC.isPressed()) {
+    btnBCFired = false;
+  }
+
+  // Check B+C dual long-press first; block individual B/C while dual is active
+  if (checkDualLongPress(now)) {
+    resetTireChange();
+  } else if (!btnBCFired) {
     if (checkLongPress(M5.BtnB, lastBtnBTrigger, btnBFired, now)) resetTirePressure();
     if (checkLongPress(M5.BtnC, lastBtnCTrigger, btnCFired, now)) resetChainLube();
   }
