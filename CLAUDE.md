@@ -66,9 +66,10 @@ Each `lib/Foo` has a corresponding `test/test_foo/test_foo.cpp`. Tests use Unity
 
 ### Open-Meteo Weather API
 - Free, no auth (10,000 req/day limit)
-- Forecast: `api.open-meteo.com/v1/forecast` — wind, weather code, precipitation probability
+- Forecast: `api.open-meteo.com/v1/forecast` — wind (speed/direction), weather code, 3h precipitation probability
 - Archive: `archive-api.open-meteo.com/v1/archive` — historical precipitation for rain ride detection
 - Sync interval: 30 min
+- `WiFiClientSecure` + `HTTPClient` with `setInsecure()` (same pattern as Strava)
 
 ## Maintenance Tracker
 - All buttons use **long press (3 seconds)** to prevent accidental resets
@@ -83,7 +84,7 @@ Each `lib/Foo` has a corresponding `test/test_foo/test_foo.cpp`. Tests use Unity
 ## Rain Ride Detection
 - After each Strava sync, checks if latest ride was in rain via Open-Meteo Archive API
 - Uses activity's `start_latlng` if available, otherwise falls back to `WEATHER_LAT`/`WEATHER_LON`
-- Rain threshold: ≥0.5mm precipitation in any hour of the ride day
+- Rain threshold: ≥0.5mm precipitation in any hour during the ride
 - Only checks outdoor ride types: Ride, EBikeRide, GravelRide, MountainBikeRide
 - If rain detected, forces chain lube severity to CRITICAL (RED) regardless of distance
 - Flag persists in NVS (`rain_ride`) until C button reset clears it
