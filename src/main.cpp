@@ -110,12 +110,12 @@ bool weatherSyncNeeded = true;
 bool rainRideFlag = false;
 
 // Button long-press debounce
-unsigned long lastBtnATrigger = 0;
 unsigned long lastBtnBTrigger = 0;
 unsigned long lastBtnCTrigger = 0;
-bool btnAFired = false;
+unsigned long lastBtnBCTrigger = 0;
 bool btnBFired = false;
 bool btnCFired = false;
+bool btnBCFired = false;
 
 static uint64_t currentCumulativeMs() {
   return cumulativeUptimeMs + (millis() - lastUptimeUpdateMs);
@@ -883,7 +883,7 @@ void drawStaticLayout() {
     M5.Lcd.setTextSize(1);
     M5.Lcd.setTextColor(COL_ACCENT_AMBER, COL_HEADER_BG);
     M5.Lcd.setTextDatum(MC_DATUM);
-    M5.Lcd.drawString("A Tire", 65, by + h / 2);
+    M5.Lcd.drawString("B+C Tire", 65, by + h / 2);
     M5.Lcd.drawString("B Air", 160, by + h / 2);
     M5.Lcd.drawString("C Chain", 255, by + h / 2);
     M5.Lcd.setTextDatum(TL_DATUM);
@@ -1294,6 +1294,23 @@ static bool checkLongPress(Button& btn, unsigned long& lastTrigger,
   return false;
 }
 
+// Check dual long-press (B+C simultaneously); fires once per press cycle.
+// btnBCFired is reset in loop() only when both buttons are released,
+// to prevent single-button ghost fires when one button is released first.
+static bool checkDualLongPress(unsigned long now) {
+  if (M5.BtnB.isPressed() && M5.BtnC.isPressed()) {
+    if (!btnBCFired && M5.BtnB.pressedFor(LONG_PRESS_MS) &&
+        M5.BtnC.pressedFor(LONG_PRESS_MS) &&
+        (lastBtnBCTrigger == 0 ||
+         (now - lastBtnBCTrigger >= BUTTON_DEBOUNCE_MS))) {
+      lastBtnBCTrigger = now;
+      btnBCFired = true;
+      return true;
+    }
+  }
+  return false;
+}
+
 static void resetTireChange() {
   uint64_t cumNow = currentCumulativeMs();
   tireChange.reset(cumNow);
@@ -1333,9 +1350,18 @@ void loop() {
 
   unsigned long now = millis();
 
-  if (checkLongPress(M5.BtnA, lastBtnATrigger, btnAFired, now)) resetTireChange();
-  if (checkLongPress(M5.BtnB, lastBtnBTrigger, btnBFired, now)) resetTirePressure();
-  if (checkLongPress(M5.BtnC, lastBtnCTrigger, btnCFired, now)) resetChainLube();
+  // Reset dual-press flag only when both buttons are released
+  if (!M5.BtnB.isPressed() && !M5.BtnC.isPressed()) {
+    btnBCFired = false;
+  }
+
+  // Check B+C dual long-press first; block individual B/C while dual is active
+  if (checkDualLongPress(now)) {
+    resetTireChange();
+  } else if (!btnBCFired) {
+    if (checkLongPress(M5.BtnB, lastBtnBTrigger, btnBFired, now)) resetTirePressure();
+    if (checkLongPress(M5.BtnC, lastBtnCTrigger, btnCFired, now)) resetChainLube();
+  }
 
   // Wi-Fi reconnection (every 30s)
   if (WiFi.status() != WL_CONNECTED &&

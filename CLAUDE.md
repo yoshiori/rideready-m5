@@ -73,7 +73,7 @@ Each `lib/Foo` has a corresponding `test/test_foo/test_foo.cpp`. Tests use Unity
 
 ## Maintenance Tracker
 - All buttons use **long press (3 seconds)** to prevent accidental resets
-- **A button (hold 3s)**: Reset Tire Change distance — GPIO39 ghost triggers safely ignored by long-press
+- **B+C buttons (hold 3s simultaneously)**: Reset Tire Change distance — moved from Button A due to GPIO39 ghost trigger hardware bug
 - **B button (hold 3s)**: Reset Tire Pressure timer
 - **C button (hold 3s)**: Reset Chain Lube (distance + epoch + rain flag)
 - Cumulative uptime tracked via `millis()` and persisted to NVS every 60s
@@ -125,7 +125,7 @@ Each `lib/Foo` has a corresponding `test/test_foo/test_foo.cpp`. Tests use Unity
 |      [TIRE 36px]       [CHAIN 72px]      |
 |  Air: 3 days              245 km         |
 |  Tire: 1234 km                           |
-| ◀A Tire▷  ◀B Air▷     ◀C Chain▷         |
+| ◀B+C Tire▷ ◀B Air▷    ◀C Chain▷         |
 +------------------------------------------+
 ```
 - INFO panel progress bar: green fill up to current, | marker at weekly average
