@@ -1,86 +1,92 @@
 # CLAUDE.md
 
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+
 ## Build & Deploy
 - `mise run build` — build firmware
 - `mise run upload` — flash to M5Stack via /dev/ttyUSB0
-- `mise exec -- pio test -e native` — run unit tests
+- `mise exec -- pio test -e native` — run all unit tests
+- `mise exec -- pio test -e native -f test_pressure_trend` — run a single test suite
 - Upload may fail with "Wrong boot mode" — press reset button on M5Stack and retry
 - `./scripts/serial_monitor.sh [seconds] [device]` — read serial output (default 10s, /dev/ttyUSB0)
+- First-time setup: `mise run setup` to install PlatformIO CLI
+
+## Architecture
+
+**Bicycle maintenance dashboard** on M5Stack Core ESP32 (320x240 LCD). Monitors tire pressure age, tire/chain wear distance via Strava, and indoor/outdoor weather sensors.
+
+### Data flow
+`Strava API` / `Open-Meteo API` / `ENV III sensor` → **lib/ parsers** (pure logic, testable) → **main.cpp** (HTTP, NVS, display)
+
+### lib/ — Pure logic libraries (all testable in native env)
+| Library | Role |
+|---------|------|
+| `StravaClient` | Parse JSON responses from Strava API (stats, activities, tokens) |
+| `WeatherClient` | Parse Open-Meteo JSON (current weather, historical precipitation) |
+| `RainRideDetector` | Determine if an activity was a rain ride (checks type + weather) |
+| `MaintenanceTracker` | Track elapsed time/distance for maintenance items |
+| `MaintenanceDisplay` | Format display strings + calculate severity (NORMAL/WARNING/CRITICAL) |
+| `PressureTrend` | Barometric pressure trend (rising/falling/stable) from rolling samples |
+
+### src/main.cpp — Firmware monolith
+All hardware interaction, WiFi/NTP, HTTP calls, NVS persistence, LCD rendering, and button handling live here. The lib/ parsers are called with raw JSON strings; main.cpp handles the HTTP transport.
+
+### Test pattern
+Each `lib/Foo` has a corresponding `test/test_foo/test_foo.cpp`. Tests use Unity framework and run natively (no ESP32 needed). The native env (`platformio.ini [env:native]`) excludes `src/` via `build_src_filter = -<*>`.
 
 ## Hardware
 - **Board**: M5Stack Core ESP32 (original, not Core2/CoreS3)
-- **PORT A (I2C)**: SDA=21, SCL=22
-- **ENV III Sensor**: SHT30 (0x44) + QMP6988 (0x70)
+- **PORT A (I2C)**: SDA=21, SCL=22 — SHT3X (0x44, temp/humidity) + QMP6988 (0x70, pressure)
 - Speaker disabled via `M5.begin(true, true, true, false)`
-
-## I2C Devices on PORT A
-| Address | Device |
-|---------|--------|
-| 0x44 | SHT3X (temp/humidity) |
-| 0x70 | QMP6988 (pressure) |
-
-## Project Structure
-- `lib/` — reusable libraries (auto-linked in native tests)
-- `src/` — main firmware (excluded from native env build)
-- `test/` — unit tests (`pio test -e native`)
-- Testable code goes in `lib/`, not `src/`
 
 ## Known Pitfalls
 - Arduino `RISING` macro conflicts with enum names — use `TREND_` prefix
 - M5Unit-ENV: use `"SHT3X.h"` / `"QMP6988.h"` individually (no `M5_ENV.h`)
 - QMP6988 address is 0x70 on this unit, not default 0x56
+- ArduinoJson v7 — use `JsonDocument`, not deprecated `StaticJsonDocument`
+
+## Config Files (all gitignored, `.example` templates checked in)
+- `src/wifi_config.h` — `WIFI_SSID` / `WIFI_PASS`
+- `src/strava_config.h` — Client ID/Secret/Refresh Token/Athlete ID
+- `src/weather_config.h` — `WEATHER_LAT` / `WEATHER_LON`
 
 ## Wi-Fi & NTP
-- `src/wifi_config.h` contains SSID/PASS (`#define WIFI_SSID` / `WIFI_PASS`)
-- `src/wifi_config.h.example` is the template (checked in); `src/wifi_config.h` is gitignored
-- ESP32 built-in WiFi (no extra library needed)
 - NTP: `configTime(9*3600, 0, "ntp.nict.jp", "pool.ntp.org")` — JST, no DST
 - Blocking connect on boot (max 10s), non-blocking reconnect every 30s in loop
 - NTP resync every 1 hour
 
+## External APIs
+
+### Strava API
+- OAuth2 refresh token flow; tokens persisted in NVS
+- Token auto-refresh before expiry (6h lifetime, 5min buffer)
+- Endpoints: `/athletes/{id}/stats`, `/athlete/activities?per_page=1`, `/athlete/activities?after={epoch}&per_page=200`
+- Sync interval: 10 min; backoff 15 min on 429
+- `WiFiClientSecure` + `HTTPClient` with `setInsecure()` (no cert pinning)
+
+### Open-Meteo Weather API
+- Free, no auth (10,000 req/day limit)
+- Forecast: `api.open-meteo.com/v1/forecast` — wind, weather code, precipitation probability
+- Archive: `archive-api.open-meteo.com/v1/archive` — historical precipitation for rain ride detection
+- Sync interval: 30 min
+
 ## Maintenance Tracker
 - All buttons use **long press (3 seconds)** to prevent accidental resets
-- **A button (hold 3s)**: Reset Tire Change distance — GPIO39 ghost triggers are safely ignored by long-press detection
+- **A button (hold 3s)**: Reset Tire Change distance — GPIO39 ghost triggers safely ignored by long-press
 - **B button (hold 3s)**: Reset Tire Pressure timer
-- **C button (hold 3s)**: Reset Chain Lube (distance + epoch)
+- **C button (hold 3s)**: Reset Chain Lube (distance + epoch + rain flag)
 - Cumulative uptime tracked via `millis()` and persisted to NVS every 60s
 - When NTP is synced, resets also store Unix epoch for date-based display
-- **Tire Pressure**: time-based display — NTP synced → "N days" (≤7) or "MM/DD" (>7); NTP not synced → "N h"
-- **Tire Change**: distance-based display — Strava API fetches activities since reset, sums distance in km
-  - Shows "0 km" until Strava sync completes after reset
-- **Chain Lube**: distance-based display — Strava API fetches activities since reset, sums distance in km
-  - Shows "0 km" until Strava sync completes after reset
+- **Tire Pressure**: time-based — NTP synced → "N days" (≤7) or "MM/DD" (>7); no NTP → "N h"
+- **Tire Change / Chain Lube**: distance-based — Strava fetches activities since reset epoch, sums km
 
 ## Rain Ride Detection
-- After each Strava sync, checks if the latest ride was in rain
-- Uses Open-Meteo Archive API (`archive-api.open-meteo.com/v1/archive`) with activity's date and location
-- If activity has `start_latlng`, uses that; otherwise falls back to `WEATHER_LAT`/`WEATHER_LON`
+- After each Strava sync, checks if latest ride was in rain via Open-Meteo Archive API
+- Uses activity's `start_latlng` if available, otherwise falls back to `WEATHER_LAT`/`WEATHER_LON`
 - Rain threshold: ≥0.5mm precipitation in any hour of the ride day
 - Only checks outdoor ride types: Ride, EBikeRide, GravelRide, MountainBikeRide
 - If rain detected, forces chain lube severity to CRITICAL (RED) regardless of distance
 - Flag persists in NVS (`rain_ride`) until C button reset clears it
-- Dry rides do NOT clear the flag — only manual C button reset does
-
-## Open-Meteo Weather API
-- `src/weather_config.h` contains latitude/longitude (`#define WEATHER_LAT` / `WEATHER_LON`)
-- `src/weather_config.h.example` is the template; `src/weather_config.h` is gitignored
-- Free API, no authentication required (10,000 req/day limit)
-- Endpoint: `https://api.open-meteo.com/v1/forecast` with `current` + `hourly` params
-- Fetches: wind speed (km/h), wind direction (degrees→8-compass), weather code, 3h precipitation probability
-- Sync interval: 30 minutes
-- Displayed in ENV panel (CYAN, textSize 1) below hPa line
-- `WiFiClientSecure` + `HTTPClient` with `setInsecure()` (same pattern as Strava)
-
-## Strava API
-- `src/strava_config.h` contains Client ID/Secret/Refresh Token/Athlete ID
-- `src/strava_config.h.example` is the template; `src/strava_config.h` is gitignored
-- OAuth2 refresh token flow: initial token obtained manually via browser
-- Token auto-refresh before expiry (6h lifetime, 5min buffer)
-- Tokens persisted in NVS (`strava_at`, `strava_rt`, `strava_exp`)
-- Endpoints: `/athletes/{id}/stats` (total distance), `/athlete/activities?per_page=1` (latest ride), `/athlete/activities?after={epoch}&per_page=200` (chain lube + tire change distance)
-- Sync interval: 10 minutes
-- `WiFiClientSecure` + `HTTPClient` with `setInsecure()` (no cert pinning)
-- `ArduinoJson` v7 for JSON parsing (`JsonDocument`, not deprecated `StaticJsonDocument`)
 
 ## NVS Keys (namespace: "rideready")
 | Key | Type | Description |
@@ -122,16 +128,11 @@
 +------------------------------------------+
 ```
 - INFO panel progress bar: green fill up to current, | marker at weekly average
-  - Below average: green only
-  - Above average: green to avg + cyan for excess
+  - Below average: green only; above average: green to avg + cyan for excess
+- Color theme: Dracula palette (defined as `COL_*` constants in main.cpp)
 
 ## Maintenance Color Thresholds
 - **Tire Pressure**: WHITE (0-6 days) → YELLOW (7-13 days) → RED (14+ days)
 - **Tire Change**: WHITE (0-2999 km) → YELLOW (3000-4999 km) → RED (5000+ km)
 - **Chain Lube**: WHITE (0-299 km) → YELLOW (300-399 km) → RED (400+ km)
 - Severity logic lives in `lib/MaintenanceDisplay` (testable), color mapping in `main.cpp`
-
-## Button Map (all long press 3s)
-- **A button (hold 3s)**: Reset Tire Change distance — GPIO39 ghost triggers safely ignored by long-press detection
-- **B button (hold 3s)**: Reset Tire Pressure timer
-- **C button (hold 3s)**: Reset Chain Lube (distance + epoch)
