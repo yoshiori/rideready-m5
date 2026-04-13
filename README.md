@@ -2,14 +2,15 @@
 
 [![CI](https://github.com/yoshiori/rideready-m5/actions/workflows/ci.yml/badge.svg)](https://github.com/yoshiori/rideready-m5/actions/workflows/ci.yml)
 
-A motorcycle dashboard firmware for **M5Stack Core ESP32** that displays environmental data, riding stats, weather forecasts, and maintenance reminders on a 320x240 LCD.
+A bicycle maintenance dashboard firmware for **M5Stack Core ESP32** that displays environmental data, riding stats, weather forecasts, and maintenance reminders on a 320x240 LCD.
 
 ## Features
 
-- **Environment monitoring** — Temperature, humidity, and barometric pressure via ENV III sensor (SHT30 + QMP6988) with pressure trend indicator
-- **Weather forecast** — Wind speed/direction, weather code, and 3-hour precipitation probability from Open-Meteo API
-- **Strava integration** — Total ride distance and latest activity via OAuth2 token refresh flow
-- **Maintenance tracking** — Tire pressure (time-based) and chain lube (distance-based) reminders with color-coded severity (white/yellow/red)
+- **Environment monitoring** — Indoor temperature, humidity, and barometric pressure via ENV III sensor (SHT30 + QMP6988) with pressure trend indicator
+- **Weather forecast** — Outdoor temperature, wind speed/direction, weather code, and 3-hour precipitation probability from Open-Meteo API
+- **Strava integration** — Total distance, weekly/monthly stats, and per-item distance tracking via OAuth2 token refresh flow
+- **Maintenance tracking** — Tire pressure (time-based), tire change and chain lube (distance-based) with color-coded severity (white/yellow/red)
+- **Rain ride detection** — Cross-references Strava activities against Open-Meteo archive to force chain lube CRITICAL after wet rides
 - **Wi-Fi & NTP** — Auto-connect with non-blocking reconnect, NTP time sync for date display
 - **Dracula color theme** — Clean UI with icon-based layout
 
@@ -23,20 +24,7 @@ A motorcycle dashboard firmware for **M5Stack Core ESP32** that displays environ
 
 ## Screen Layout
 
-```
-+------------------+------------------+
-|  ENV Panel       |  INFO Panel      |
-|  25.3 C          |  14:32           |
-|  48.2 %          |  2026/03/02      |
-|  1014 -          |  WiFi: MySSID    |
-|  hPa             |  1234 km         |
-|  5km/h SW R3h:20%|                  |
-+------------------+------------------+
-|  Maintenance Panel                  |
-|  Tire Pressure    Chain Lube        |
-|     3 days         245 km           |
-+-------------------------------------+
-```
+![Screen](docs/screen.png)
 
 ## Setup
 
@@ -85,6 +73,7 @@ lib/           Reusable libraries (auto-linked in native tests)
   MaintenanceTracker/   Time/distance tracking with NVS persistence
   MaintenanceDisplay/   Display formatting and severity thresholds
   PressureTrend/        Barometric pressure trend detection
+  RainRideDetector/     Rain ride detection from activity + weather
   StravaClient/         Strava API JSON parsing
   WeatherClient/        Open-Meteo API JSON parsing
 test/          Unit tests (PlatformIO Unity)
@@ -92,11 +81,14 @@ test/          Unit tests (PlatformIO Unity)
 
 ## Button Map
 
+All resets require a **3-second long press** to prevent accidental triggering.
+
 | Button | Action |
 |--------|--------|
-| A | Disabled (ESP32 GPIO39 errata) |
-| B | Reset tire pressure timer |
-| C | Reset chain lube (distance + epoch) |
+| A | Disabled (GPIO39 ghost trigger hardware bug) |
+| B (hold 3s) | Reset tire pressure timer |
+| C (hold 3s) | Reset chain lube (distance + epoch + rain flag) |
+| B + C (hold 3s together) | Reset tire change distance |
 
 ## License
 
