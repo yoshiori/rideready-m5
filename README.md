@@ -6,7 +6,7 @@ A bicycle maintenance dashboard firmware for **M5Stack Core ESP32** that display
 
 ## Features
 
-- **Environment monitoring** — Indoor/outdoor temperature, humidity, and barometric pressure via ENV III sensor (SHT30 + QMP6988) with pressure trend indicator
+- **Environment monitoring** — Indoor temperature, humidity, and barometric pressure via ENV III sensor (SHT30 + QMP6988) with pressure trend indicator
 - **Weather forecast** — Outdoor temperature, wind speed/direction, weather code, and 3-hour precipitation probability from Open-Meteo API
 - **Strava integration** — Total distance, weekly/monthly stats, and per-item distance tracking via OAuth2 token refresh flow
 - **Maintenance tracking** — Tire pressure (time-based), tire change and chain lube (distance-based) with color-coded severity (white/yellow/red)
